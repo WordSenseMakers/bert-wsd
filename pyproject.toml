@@ -6,8 +6,9 @@ authors = ["Your Name <you@example.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = ">=3.9"
+python = ">=3.9,<4"
 click = "^8.0.3"
+click-option-group = "^0.5.3"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0.1"
