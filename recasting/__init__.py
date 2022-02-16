@@ -15,14 +15,16 @@ import pathlib
     "--dataset-in",
     type=click.Path(exists=True, readable=True, path_type=pathlib.Path),
     help="path to locally stored dataset",
+    required=True,
 )
 @click.option(
     "-do",
     "--dataset-out",
     type=click.Path(exists=False, readable=True, path_type=pathlib.Path),
     help="path to write recasted dataset to",
+    required=True,
 )
-def main():
+def main(**params):
     pass
 
 

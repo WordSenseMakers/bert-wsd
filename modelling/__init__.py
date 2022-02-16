@@ -17,7 +17,8 @@ import pathlib
     help="supported huggingface models",
 )
 @optgroup.option(
-    "-lm", "--local-model",
+    "-lm",
+    "--local-model",
     type=click.Path(exists=True, readable=True, path_type=pathlib.Path),
     help="path to locally stored model",
 )
@@ -38,5 +39,12 @@ import pathlib
     type=click.Path(exists=True, readable=True, path_type=pathlib.Path),
     help="path to test set",
 )
-def entrypoint():
-    pass
+def main(**params):
+    if (hf_model := params["hf_model"]) is not None:
+        print(f"Fetching {params['hf_model']} from huggingface ...")
+    else:
+        print(f"Loading {params['local_model']} from storage ...")
+
+
+if __name__ == "__main__":
+    main()
