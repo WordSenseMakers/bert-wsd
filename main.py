@@ -1,7 +1,8 @@
-import click
+import click, colorama
 
-import recasting, modelling
+import datagen, modelling
 
 if __name__ == "__main__":
-    main = click.Group(commands=[modelling.main, recasting.main])
+    colorama.init(autoreset=True)
+    main = click.Group(commands=[modelling.main, datagen.main])
     main()
