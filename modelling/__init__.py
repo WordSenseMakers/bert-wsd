@@ -1,8 +1,9 @@
+import pathlib
+
 import click
 from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
 
-import pathlib
-
+from transformers import BertTokenizer, BertModel
 
 @click.command(name="modelling", help="train and test models")
 @optgroup.group(
@@ -41,7 +42,16 @@ import pathlib
 )
 def main(**params):
     if (hf_model := params["hf_model"]) is not None:
-        print(f"Fetching {params['hf_model']} from huggingface ...")
+        if hf_model == "bert-wwm":
+            model = "bert-large-uncased-whole-word-masking"
+        elif hf_model == "roberta":
+            model = "roberta-large"
+        else:
+            assert hf_model == "deberta"
+            model = "roberta-large"
+        print(f"Fetching {params['hf_model']} ({model}) from huggingface ...")
+        tokenizer = BertTokenizer.from_pretrained(model, local_files_only=False)
+        
     else:
         print(f"Loading {params['local_model']} from storage ...")
 
