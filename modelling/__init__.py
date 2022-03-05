@@ -7,6 +7,7 @@ from transformers import BertTokenizer, BertModel
 
 import colour_logging as logging
 
+
 @click.command(name="modelling", help="train and test models")
 @optgroup.group(
     name="model",
@@ -43,7 +44,8 @@ import colour_logging as logging
     help="path to test set",
 )
 def main(**params):
-    if (hf_model := params["hf_model"]) is not None:
+    hf_model = params["hf_model"]
+    if hf_model is not None:
         if hf_model == "bert-wwm":
             model = "bert-large-uncased-whole-word-masking"
         elif hf_model == "roberta":
@@ -53,11 +55,10 @@ def main(**params):
             model = "roberta-large"
         logging.info(f"Fetching {params['hf_model']} ({model}) from huggingface ...")
         tokenizer = BertTokenizer.from_pretrained(model, local_files_only=False)
-        
+
     else:
         logging.info(f"Loading {params['local_model']} from storage ...")
         tokenizer = BertTokenizer.from_pretrained(model, local_files_only=True)
-        
 
 
 if __name__ == "__main__":
