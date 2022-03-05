@@ -5,6 +5,8 @@ from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
 
 from transformers import BertTokenizer, BertModel
 
+import colour_logging as logging
+
 @click.command(name="modelling", help="train and test models")
 @optgroup.group(
     name="model",
@@ -49,11 +51,13 @@ def main(**params):
         else:
             assert hf_model == "deberta"
             model = "roberta-large"
-        print(f"Fetching {params['hf_model']} ({model}) from huggingface ...")
+        logging.info(f"Fetching {params['hf_model']} ({model}) from huggingface ...")
         tokenizer = BertTokenizer.from_pretrained(model, local_files_only=False)
         
     else:
-        print(f"Loading {params['local_model']} from storage ...")
+        logging.info(f"Loading {params['local_model']} from storage ...")
+        tokenizer = BertTokenizer.from_pretrained(model, local_files_only=True)
+        
 
 
 if __name__ == "__main__":
