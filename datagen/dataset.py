@@ -36,5 +36,10 @@ class SemCorDataSet:
         out.parent.mkdir(parents=True, exist_ok=True)
         self.df.to_pickle(out)
 
+    def sense_keys(self, fullid: str) -> list:
+        # dfid = f"{docid}.{sntid}.{tokid}" 
+        return self.df[self.df.id == fullid]["sense-keys"].split(",")
+        
+
     def sentences(self) -> pd.DataFrame:
         return self.df.groupby(by=["sntid"])
