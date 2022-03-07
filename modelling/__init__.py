@@ -3,7 +3,7 @@ import pathlib
 import click
 from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
 
-from transformers import BertTokenizer, BertModel
+from transformers import AutoTokenizer, AutoModel
 
 import colour_logging as logging
 
@@ -52,13 +52,13 @@ def main(**params):
             model = "roberta-large"
         else:
             assert hf_model == "deberta"
-            model = "roberta-large"
+            model = "microsoft/deberta-large"
         logging.info(f"Fetching {params['hf_model']} ({model}) from huggingface ...")
-        tokenizer = BertTokenizer.from_pretrained(model, local_files_only=False)
+        tokenizer = AutoTokenizer.from_pretrained(model, local_files_only=False)
 
     else:
         logging.info(f"Loading {params['local_model']} from storage ...")
-        tokenizer = BertTokenizer.from_pretrained(model, local_files_only=True)
+        tokenizer = AutoTokenizer.from_pretrained(model, local_files_only=True)
 
 
 if __name__ == "__main__":
