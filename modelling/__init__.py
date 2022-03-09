@@ -5,7 +5,7 @@ import numpy as np
 import click
 from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
 
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModelForMaskedLM
 from transformers import Trainer, TrainingArguments
 
 from transformers import DataCollatorForLanguageModeling
@@ -91,12 +91,12 @@ def main(**params):
             f"Fetching {params['hf_model']} ({model_name}) from huggingface ..."
         )
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModel.from_pretrained(model_name)
+        model = AutoModelForMaskedLM.from_pretrained(model_name)
 
     else:
         logging.info(f"Loading {params['local_model']} from storage ...")
         tokenizer = AutoTokenizer.from_pretrained(model, local_files_only=True)
-        model = AutoModel.from_pretrained(model, local_files_only=True)
+        model = AutoModelForMaskedLM.from_pretrained(model, local_files_only=True)
 
     out, tr_path, ts_path = params["output_path"], params["train"], params["test"]
     ds = SemCorDataSet.unpickle(tr_path or ts_path)
