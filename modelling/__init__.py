@@ -96,7 +96,7 @@ def main(**params):
     out, tr_path, ts_path = params["output_path"], params["train"], params["test"]
     if tr_path is not None:
         ds = SemCorDataSet.unpickle(tr_path)
-        metric = metrics.WordSenseSimilarity(dataset=ds, config_name="max")
+        metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
         dc = collators.DataCollatorForPreciseLanguageModeling(tokenizer=tokenizer, dataset=ds)
         tr_args = TrainingArguments(
             output_dir=out,

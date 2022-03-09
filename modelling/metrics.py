@@ -1,5 +1,5 @@
 import abc, statistics
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import datasets
 from nltk.corpus import wordnet as wn
@@ -11,7 +11,8 @@ class WordSenseSimilarity(datasets.Metric):
     def __init__(
         self,
         dataset: SemCorDataSet,
-        config_name: Literal["max", "avg", "min"],
+        # max, avg or min
+        config_name: str,
         keep_in_memory: bool = False,
         cache_dir: Optional[str] = None,
         num_process: int = 1,
