@@ -6,7 +6,7 @@ from nltk.corpus import wordnet as wn
 from datagen.dataset import SemCorDataSet
 
 
-class SynsetSimilarity(datasets.Metric):
+class WordSenseSimilarity(datasets.Metric):
     def __init__(
         self,
         dataset: SemCorDataSet,
