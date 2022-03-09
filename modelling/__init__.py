@@ -7,12 +7,14 @@ from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
 
 from transformers import AutoTokenizer, AutoModel
 from transformers import Trainer, TrainingArguments
+
 # from transformers import DataCollatorForLanguageModeling
 
 import colour_logging as logging
 from . import collators, metrics
 from datagen.dataset import SemCorDataSet
 import datasets
+
 
 @click.command(name="modelling", help="train and test models")
 @optgroup.group(
@@ -73,7 +75,7 @@ import datasets
     "--output-path",
     type=click.Path(exists=False, readable=True, path_type=pathlib.Path),
     required=True,
-    help="Where to store result"
+    help="Where to store result",
 )
 def main(**params):
     hf_model = params["hf_model"]
@@ -99,16 +101,19 @@ def main(**params):
     out, tr_path, ts_path = params["output_path"], params["train"], params["test"]
     ds = SemCorDataSet.unpickle(tr_path or ts_path)
 
-    sentence_level = ds.df.groupby(["docid", "sntid"]) \
-        .agg({"token": " ".join}) \
+    sentence_level = (
+        ds.df.groupby(["docid", "sntid"])
+        .agg({"token": " ".join})
         .rename(columns={"token": "sentence"})
+    )
     dataset = datasets.Dataset.from_pandas(sentence_level).map(
-        lambda df: tokenizer(df["sentence"]), batched=True
+        lambda df: tokenizer(df["sentence"], truncation=True, padding="max_length"),
+        batched=True,
     )
 
     if tr_path is not None:
-        #metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
-        #dc = collators.DataCollatorForPreciseLanguageModeling(tokenizer=tokenizer, dataset=ds)
+        # metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
+        # dc = collators.DataCollatorForPreciseLanguageModeling(tokenizer=tokenizer, dataset=ds)
         tr_args = TrainingArguments(
             output_dir=out,
             evaluation_strategy="epoch",
@@ -119,8 +124,8 @@ def main(**params):
             model=model,
             args=tr_args,
             train_dataset=dataset,
-            #compute_metrics=lambda ep: _compute_metrics(metric, ep),
-            #data_collator=dc,
+            # compute_metrics=lambda ep: _compute_metrics(metric, ep),
+            # data_collator=dc,
         )
         trainer.train()
         trainer.save_model(out)
