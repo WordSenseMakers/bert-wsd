@@ -50,40 +50,37 @@ def _create_dataset(xmlfile: str, goldstandard: str) -> SemCorDataSet:
 
     logging.info(f"Loading tokens and lemmata from {xmlfile}")
     for event, elem in tqdm(
-        etree.iterparse(xmlfile, events=("start", "end"), tag="sentence")
+        etree.iterparse(xmlfile, events=("end",), tag="sentence")
     ):
-        if event == "start":
-            docid, sntid = elem.attrib["id"].split(".")
-            for child in elem:
-                if child.tag in ("wf", "instance"):
-                    assert child.text is not None, f"{child}"
-                if child.tag == "wf":
-                    rows.append(
-                        (
-                            np.nan,
-                            docid,
-                            sntid,
-                            np.nan,
-                            child.text,
-                            child.attrib["lemma"],
-                        )
+        docid, sntid = elem.attrib["id"].split(".")
+        for child in elem:
+            if child.tag in ("wf", "instance"):
+                assert child.text is not None, f"{child}"
+            if child.tag == "wf":
+                rows.append(
+                    (
+                        np.nan,
+                        docid,
+                        sntid,
+                        np.nan,
+                        child.text,
+                        child.attrib["lemma"],
                     )
-                elif child.tag == "instance":
-                    _, _, tokid = child.attrib["id"].split(".")
-                    rows.append(
-                        (
-                            child.attrib["id"],
-                            docid,
-                            sntid,
-                            tokid,
-                            child.text,
-                            child.attrib["lemma"],
-                        )
+                )
+            elif child.tag == "instance":
+                _, _, tokid = child.attrib["id"].split(".")
+                rows.append(
+                    (
+                        child.attrib["id"],
+                        docid,
+                        sntid,
+                        tokid,
+                        child.text,
+                        child.attrib["lemma"],
                     )
-                else:
-                    raise Exception(f"Unhandled tag in sentence: {child.tag}")
-        else:
-            assert event == "end"
+                )
+            else:
+                raise Exception(f"Unhandled tag in sentence: {child.tag}")
     logging.success("Loaded tokens and lemmata!\n")
 
     data_df = pd.DataFrame(
