@@ -125,7 +125,7 @@ def main(**params):
             args=tr_args,
             train_dataset=dataset,
             # compute_metrics=lambda ep: _compute_metrics(metric, ep),
-            data_collator=DataCollatorForLanguageModeling(),
+            data_collator=DataCollatorForLanguageModeling(tokenizer),
         )
         trainer.train()
         trainer.save_model(out)
