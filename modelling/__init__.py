@@ -12,6 +12,7 @@ from transformers import Trainer, TrainingArguments
 import colour_logging as logging
 from . import collators, metrics
 from datagen.dataset import SemCorDataSet
+import datasets
 
 @click.command(name="modelling", help="train and test models")
 @optgroup.group(
@@ -109,6 +110,7 @@ def main(**params):
         trainer = Trainer(
             model=model,
             args=tr_args,
+            train_dataset=datasets.Dataset.from_pandas(ds.df),
             compute_metrics=lambda ep: _compute_metrics(metric, ep),
             data_collator=dc,
         )
