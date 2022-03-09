@@ -5,14 +5,13 @@ import numpy as np
 import click
 from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
 
-from transformers import BertTokenizer, BertModel
+from transformers import AutoTokenizer, AutoModel
 from transformers import Trainer, TrainingArguments
 # from transformers import DataCollatorForLanguageModeling
 
 import colour_logging as logging
-from . import metrics
-from . import collators
-
+from . import collators, metrics
+from datagen.dataset import SemCorDataSet
 
 @click.command(name="modelling", help="train and test models")
 @optgroup.group(
@@ -24,7 +23,7 @@ from . import collators
     "-hm",
     "--hf-model",
     type=click.Choice(["bert-wwm", "roberta", "deberta"], case_sensitive=False),
-    callback=str.lower,
+    callback=lambda ctx, param, value: value.lower(),
     help="supported huggingface models",
 )
 @optgroup.option(
@@ -82,17 +81,17 @@ def main(**params):
             model_name = "roberta-large"
         else:
             assert hf_model == "deberta"
-            model_name = "roberta-large"
+            model_name = "microsoft/deberta-large"
         logging.info(
             f"Fetching {params['hf_model']} ({model_name}) from huggingface ..."
         )
-        tokenizer = BertTokenizer.from_pretrained(model_name)
-        model = BertModel.from_pretrained(model_name)
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModel.from_pretrained(model_name)
 
     else:
         logging.info(f"Loading {params['local_model']} from storage ...")
-        tokenizer = BertTokenizer.from_pretrained(model, local_files_only=True)
-        model = BertModel.from_pretrained(model, local_files_only=True)
+        tokenizer = AutoTokenizer.from_pretrained(model, local_files_only=True)
+        model = AutoModel.from_pretrained(model, local_files_only=True)
 
     out, tr_path, ts_path = params["output_path"], params["train"], params["test"]
     if tr_path is not None:
