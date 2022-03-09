@@ -38,7 +38,7 @@ class SemCorDataSet:
 
     def _check(self):
         missing_columns = list(
-            filter(lambda name: name not in df.columns, SemCorDataSet._EXPECTED_COLUMNS)
+            filter(lambda name: name not in self.df.columns, SemCorDataSet._EXPECTED_COLUMNS)
         )
         if missing_columns:
             raise RuntimeError(
