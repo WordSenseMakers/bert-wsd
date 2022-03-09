@@ -7,13 +7,14 @@ from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
 
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 from transformers import Trainer, TrainingArguments
-
 from transformers import DataCollatorForLanguageModeling
+import datasets
+
+import torch
 
 import colour_logging as logging
 from . import collators, metrics
 from datagen.dataset import SemCorDataSet
-import datasets
 
 
 @click.command(name="modelling", help="train and test models")
