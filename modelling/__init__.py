@@ -97,8 +97,10 @@ def main(**params):
         model = AutoModel.from_pretrained(model, local_files_only=True)
 
     out, tr_path, ts_path = params["output_path"], params["train"], params["test"]
+    ds = SemCorDataSet.unpickle(tr_path or ts_path)
+
     if tr_path is not None:
-        ds = SemCorDataSet.unpickle(tr_path)
+        dataset = datasets.Dataset.from_pandas(ds.df)
         metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
         dc = collators.DataCollatorForPreciseLanguageModeling(tokenizer=tokenizer, dataset=ds)
         tr_args = TrainingArguments(
@@ -110,7 +112,7 @@ def main(**params):
         trainer = Trainer(
             model=model,
             args=tr_args,
-            train_dataset=datasets.Dataset.from_pandas(ds.df),
+            train_dataset=dataset,
             compute_metrics=lambda ep: _compute_metrics(metric, ep),
             data_collator=dc,
         )
