@@ -1,11 +1,19 @@
 import pathlib
 
+import numpy as np
+
 import click
 from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
 
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModelForMaskedLM
+from transformers import Trainer, TrainingArguments
+
+from transformers import DataCollatorForLanguageModeling
 
 import colour_logging as logging
+from . import collators, metrics
+from datagen.dataset import SemCorDataSet
+import datasets
 
 
 @click.command(name="modelling", help="train and test models")
@@ -18,47 +26,115 @@ import colour_logging as logging
     "-hm",
     "--hf-model",
     type=click.Choice(["bert-wwm", "roberta", "deberta"], case_sensitive=False),
+    callback=lambda ctx, param, value: value.lower(),
     help="supported huggingface models",
 )
 @optgroup.option(
     "-lm",
     "--local-model",
-    type=click.Path(exists=True, readable=True, path_type=pathlib.Path),
+    type=click.Path(
+        file_okay=False,
+        dir_okay=True,
+        exists=True,
+        readable=True,
+        path_type=pathlib.Path,
+    ),
     help="path to locally stored model",
 )
 @optgroup.group(
-    name="action",
-    help="select workload",
+    name="workload",
+    help="training or testing",
     cls=RequiredMutuallyExclusiveOptionGroup,
 )
 @optgroup.option(
     "-tr",
     "--train",
-    type=click.Path(exists=True, readable=True, path_type=pathlib.Path),
+    type=click.Path(
+        file_okay=True,
+        dir_okay=False,
+        exists=True,
+        readable=True,
+        path_type=pathlib.Path,
+    ),
     help="path to training set",
 )
 @optgroup.option(
     "-te",
     "--test",
-    type=click.Path(exists=True, readable=True, path_type=pathlib.Path),
+    type=click.Path(
+        file_okay=True,
+        dir_okay=False,
+        exists=True,
+        readable=True,
+        path_type=pathlib.Path,
+    ),
     help="path to test set",
+)
+@click.option(
+    "-op",
+    "--output-path",
+    type=click.Path(exists=False, readable=True, path_type=pathlib.Path),
+    required=True,
+    help="Where to store result",
 )
 def main(**params):
     hf_model = params["hf_model"]
     if hf_model is not None:
         if hf_model == "bert-wwm":
-            model = "bert-large-uncased-whole-word-masking"
+            model_name = "bert-large-uncased-whole-word-masking"
         elif hf_model == "roberta":
-            model = "roberta-large"
+            model_name = "roberta-large"
         else:
             assert hf_model == "deberta"
-            model = "microsoft/deberta-large"
-        logging.info(f"Fetching {params['hf_model']} ({model}) from huggingface ...")
-        tokenizer = AutoTokenizer.from_pretrained(model, local_files_only=False)
+            model_name = "microsoft/deberta-large"
+        logging.info(
+            f"Fetching {params['hf_model']} ({model_name}) from huggingface ..."
+        )
+        tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForMaskedLM.from_pretrained(model_name)
 
     else:
         logging.info(f"Loading {params['local_model']} from storage ...")
         tokenizer = AutoTokenizer.from_pretrained(model, local_files_only=True)
+        model = AutoModelForMaskedLM.from_pretrained(model, local_files_only=True)
+
+    out, tr_path, ts_path = params["output_path"], params["train"], params["test"]
+    ds = SemCorDataSet.unpickle(tr_path or ts_path)
+
+    sentence_level = (
+        ds.df.groupby(["docid", "sntid"])
+        .agg({"token": " ".join})
+        .rename(columns={"token": "sentence"})
+    )
+    dataset = datasets.Dataset.from_pandas(sentence_level).map(
+        lambda df: tokenizer(df["sentence"], truncation=True, padding="max_length"),
+        batched=True,
+    )
+
+    if tr_path is not None:
+        # metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
+        # dc = collators.DataCollatorForPreciseLanguageModeling(tokenizer=tokenizer, dataset=ds)
+        tr_args = TrainingArguments(
+            output_dir=out,
+            evaluation_strategy="epoch",
+            # remove_unused_columns=False
+        )
+
+        trainer = Trainer(
+            model=model,
+            args=tr_args,
+            train_dataset=dataset,
+            # compute_metrics=lambda ep: _compute_metrics(metric, ep),
+            data_collator=DataCollatorForLanguageModeling(tokenizer),
+        )
+        trainer.train()
+        trainer.save_model(out)
+
+
+def _compute_metrics(metric, eval_pred):
+    logits, labels = eval_pred
+    predictions = np.argmax(logits, axis=-1)
+    return metric.compute(predictions=predictions, references=labels)
 
 
 if __name__ == "__main__":
