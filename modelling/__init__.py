@@ -98,12 +98,12 @@ def main(**params):
 
     else:
         logging.info(f"Loading {params['local_model']} from storage ...")
-        tokenizer = AutoTokenizer.from_pretrained(model, local_files_only=True)
-        model = AutoModelForMaskedLM.from_pretrained(model, local_files_only=True)
+        tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True)
+        model = AutoModelForMaskedLM.from_pretrained(model_name, local_files_only=True)
 
     model = model.to(device)
 
-    logging.success(f"Loaded {params['local_model']}")
+    logging.success(f"Loaded {model_name}")
     out, tr_path, ts_path = params["output_path"], params["train"], params["test"]
 
     ds_path = tr_path or ts_path
