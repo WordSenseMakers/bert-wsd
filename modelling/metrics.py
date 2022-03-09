@@ -33,6 +33,7 @@ class WordSenseSimilarity(datasets.Metric):
             experiment_id,
             max_concurrent_cache_files,
             timeout,
+            **kwargs
         )
         self.dataset = dataset
 
@@ -80,4 +81,4 @@ class WordSenseSimilarity(datasets.Metric):
             for pred_synset_set, ref_synset in zip(pred_synsets, ref_synsets)
         ]
 
-        return {self.config_name: statistics.fmean(similarities)}
+        return {"accuracy": statistics.fmean(similarities)}
