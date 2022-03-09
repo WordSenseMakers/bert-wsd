@@ -8,7 +8,7 @@ from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
 from transformers import AutoTokenizer, AutoModel
 from transformers import Trainer, TrainingArguments
 
-# from transformers import DataCollatorForLanguageModeling
+from transformers import DataCollatorForLanguageModeling
 
 import colour_logging as logging
 from . import collators, metrics
@@ -125,7 +125,7 @@ def main(**params):
             args=tr_args,
             train_dataset=dataset,
             # compute_metrics=lambda ep: _compute_metrics(metric, ep),
-            # data_collator=dc,
+            data_collator=DataCollatorForLanguageModeling(),
         )
         trainer.train()
         trainer.save_model(out)
