@@ -86,8 +86,8 @@ def main(**params):
         logging.info(
             f"Fetching {params['hf_model']} ({model_name}) from huggingface ..."
         )
-        tokenizer = BertTokenizer.from_pretrained(model_name, local_files_only=False)
-        model = BertModel.from_pretrained(model_name, local_files_only=False)
+        tokenizer = BertTokenizer.from_pretrained(model_name)
+        model = BertModel.from_pretrained(model_name)
 
     else:
         logging.info(f"Loading {params['local_model']} from storage ...")
@@ -111,6 +111,7 @@ def main(**params):
             compute_metrics=lambda ep: _compute_metrics(metric, ep),
             data_collator=dc,
         )
+        trainer.train()
 
 
 def _compute_metrics(metric, eval_pred):

@@ -1,4 +1,5 @@
-import abc, typing, statistics
+import abc, statistics
+from typing import Any, Dict, Literal, Optional, Union
 
 import datasets
 from nltk.corpus import wordnet as wn
@@ -10,7 +11,7 @@ class WordSenseSimilarity(datasets.Metric):
     def __init__(
         self,
         dataset: SemCorDataSet,
-        config_name: typing.Literal["max", "avg", "min"],
+        config_name: Literal["max", "avg", "min"],
         keep_in_memory: bool = False,
         cache_dir: Optional[str] = None,
         num_process: int = 1,
@@ -59,6 +60,8 @@ class WordSenseSimilarity(datasets.Metric):
     def _compute(
         self, *, predictions=None, references=None, **kwargs
     ) -> Dict[str, Any]:
+        print(predictions)
+        print(references)
         # Compute possible synsets for a given prediction
         pred_synsets = [wn.synsets(prediction) for prediction in predictions]
         ref_synsets = [

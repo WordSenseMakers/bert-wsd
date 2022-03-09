@@ -1,5 +1,9 @@
-from transformers import DataCollatorMixin
+from dataclasses import dataclass
+from typing import Any, Dict, List, Tuple, Union, Optional
+
+from transformers.tokenization_utils_base import PreTrainedTokenizerBase
 from transformers.data.data_collator import (
+    DataCollatorMixin,
     _numpy_collate_batch,
     _tf_collate_batch,
     _torch_collate_batch,
