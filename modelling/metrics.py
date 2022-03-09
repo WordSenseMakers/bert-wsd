@@ -23,7 +23,7 @@ class WordSenseSimilarity(datasets.Metric):
         timeout: Union[int, float] = 100,
         **kwargs,
     ):
-        super(datasets.Metric, self).__init__(
+        super().__init__(
             config_name,
             keep_in_memory,
             cache_dir,

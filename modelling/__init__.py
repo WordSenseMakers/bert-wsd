@@ -71,6 +71,8 @@ from datagen.dataset import SemCorDataSet
     "-op",
     "--output-path",
     type=click.Path(exists=False, readable=True, path_type=pathlib.Path),
+    required=True,
+    help="Where to store result"
 )
 def main(**params):
     hf_model = params["hf_model"]
