@@ -17,15 +17,8 @@ class SemCorDataSet:
     )
 
     def __init__(self, df: pd.DataFrame):
-        missing_columns = list(
-            filter(lambda name: name not in df.columns, SemCorDataSet._EXPECTED_COLUMNS)
-        )
-        if missing_columns:
-            raise RuntimeError(
-                f"Unable to construct {SemCorDataSet.__name__} from dataframe; missing column names {', '.join(missing_columns)}"
-            )
-
         self.df = df
+        self._check()
 
     @staticmethod
     def unpickle(inpath: pathlib.Path) -> "SemCorDataSet":
@@ -37,9 +30,17 @@ class SemCorDataSet:
         self.df.to_pickle(out)
 
     def sense_keys(self, fullid: str) -> list:
-        # dfid = f"{docid}.{sntid}.{tokid}" 
+        # dfid = f"{docid}.{sntid}.{tokid}"
         return self.df[self.df.id == fullid]["sense-keys"].split(",")
-        
 
     def sentences(self) -> pd.DataFrame:
         return self.df.groupby(by=["sntid"])
+
+    def _check(self):
+        missing_columns = list(
+            filter(lambda name: name not in df.columns, SemCorDataSet._EXPECTED_COLUMNS)
+        )
+        if missing_columns:
+            raise RuntimeError(
+                f"Unable to construct {SemCorDataSet.__name__} from dataframe; missing column names {', '.join(missing_columns)}"
+            )

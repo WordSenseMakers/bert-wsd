@@ -46,34 +46,6 @@ def main(**params):
 
 
 def _create_dataset(xmlfile: str, goldstandard: str) -> SemCorDataSet:
-    """logging.info(f"Loading tokens and lemmata from {xmlfile}")
-    data_df = pd.read_xml(xmlfile, xpath=xp)
-    data_df.rename(columns={"wf": "token"}, inplace=True)
-    data_df.token.fillna(value=data_df.instance, inplace=True)
-
-    data_df[["docid", "sntid", "tokid"]] = data_df.id.str.split(".", expand=True)
-    data_df = data_df.drop(columns=["instance"])
-    logging.success("Loaded tokens and lemmata!\n")
-
-
-    logging.info(f"Loading sense keys from {goldstandard}")
-    gold_df = pd.read_csv(
-        goldstandard, sep=" ", names=["id", "sense-key1", "sense-key2", "sense-key3"]
-    )
-    gold_df["sense-keys"] = gold_df[["sense-key1", "sense-key2", "sense-key3"]].apply(
-        lambda e: e.str.cat(sep=","), axis=1
-    )
-    gold_df = gold_df.drop(columns=["sense-key1", "sense-key2", "sense-key3"])
-    logging.success(f"Loaded sense keys!\n")
-
-    logging.info(f"Merging tokens and lemmata with sense keys")
-    df = data_df.merge(gold_df, on="id", how="left")
-
-    stats = io.StringIO()
-    df.info(buf=stats)
-    logging.success(f"Merged!\n")
-    logging.info(f"Statistics: {stats.getvalue()}")"""
-
     rows = list()
 
     logging.info(f"Loading tokens and lemmata from {xmlfile}")
@@ -83,6 +55,8 @@ def _create_dataset(xmlfile: str, goldstandard: str) -> SemCorDataSet:
         if event == "start":
             docid, sntid = elem.attrib["id"].split(".")
             for child in elem:
+                if child.tag in ("wf", "instance"):
+                    assert child.text is not None, f"{child}"
                 if child.tag == "wf":
                     rows.append(
                         (
