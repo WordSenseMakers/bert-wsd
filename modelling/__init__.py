@@ -78,6 +78,8 @@ import datasets
     help="Where to store result",
 )
 def main(**params):
+    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+
     hf_model = params["hf_model"]
     if hf_model is not None:
         if hf_model == "bert-wwm":
@@ -98,8 +100,15 @@ def main(**params):
         tokenizer = AutoTokenizer.from_pretrained(model, local_files_only=True)
         model = AutoModelForMaskedLM.from_pretrained(model, local_files_only=True)
 
+    model = model.to(device)
+
+    logging.success(f"Loaded {params['local_model']}")
     out, tr_path, ts_path = params["output_path"], params["train"], params["test"]
-    ds = SemCorDataSet.unpickle(tr_path or ts_path)
+
+    ds_path = tr_path or ts_path
+    logging.info(f"Loading dataset from {ds_path}")
+    ds = SemCorDataSet.unpickle(ds_path)
+    logging.success(f"Loaded dataset")
 
     sentence_level = (
         ds.df.groupby(["docid", "sntid"])
@@ -107,7 +116,7 @@ def main(**params):
         .rename(columns={"token": "sentence"})
     )
     dataset = datasets.Dataset.from_pandas(sentence_level).map(
-        lambda df: tokenizer(df["sentence"], truncation=True, padding="max_length"),
+        lambda df: tokenizer(df["sentence"], truncation=True, padding="max_length").to(device),
         batched=True,
     )
 
