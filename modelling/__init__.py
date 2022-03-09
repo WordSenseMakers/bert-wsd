@@ -99,10 +99,16 @@ def main(**params):
     out, tr_path, ts_path = params["output_path"], params["train"], params["test"]
     ds = SemCorDataSet.unpickle(tr_path or ts_path)
 
+    sentence_level = ds.df.groupby(["docid", "sntid"]) \
+        .agg({"token": " ".join}) \
+        .rename(columns={"token": "sentence"})
+    dataset = datasets.Dataset.from_pandas(sentence_level).map(
+        lambda df: tokenizer(df["sentence"]), batched=True
+    )
+
     if tr_path is not None:
-        dataset = datasets.Dataset.from_pandas(ds.df)
-        metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
-        dc = collators.DataCollatorForPreciseLanguageModeling(tokenizer=tokenizer, dataset=ds)
+        #metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
+        #dc = collators.DataCollatorForPreciseLanguageModeling(tokenizer=tokenizer, dataset=ds)
         tr_args = TrainingArguments(
             output_dir=out,
             evaluation_strategy="epoch",
@@ -113,10 +119,11 @@ def main(**params):
             model=model,
             args=tr_args,
             train_dataset=dataset,
-            compute_metrics=lambda ep: _compute_metrics(metric, ep),
-            data_collator=dc,
+            #compute_metrics=lambda ep: _compute_metrics(metric, ep),
+            #data_collator=dc,
         )
         trainer.train()
+        trainer.save_model(out)
 
 
 def _compute_metrics(metric, eval_pred):
