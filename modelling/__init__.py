@@ -79,7 +79,12 @@ from datagen.dataset import SemCorDataSet
     help="Where to store result",
 )
 def main(**params):
-    device = "cuda:0" if torch.cuda.is_available() else "cpu"
+    if torch.cuda.is_available():
+        device = "cuda:0"
+        logging.info(f"CUDA found; running on {device}")
+    else:
+        device = "cpu"
+        logging.info(f"CUDA not found!; running on {device}")
 
     hf_model = params["hf_model"]
     if hf_model is not None:
@@ -117,7 +122,7 @@ def main(**params):
         .rename(columns={"token": "sentence"})
     )
     dataset = datasets.Dataset.from_pandas(sentence_level).map(
-        lambda df: tokenizer(df["sentence"], truncation=True, padding="max_length").to(device),
+        lambda df: tokenizer(df["sentence"], truncation=True, padding="max_length"),
         batched=True,
     )
 
