@@ -84,7 +84,7 @@ def main(**params):
         logging.info(f"CUDA found; running on {device}")
     else:
         device = "cpu"
-        logging.info(f"CUDA not found!; running on {device}")
+        logging.info(f"CUDA not found; running on {device}")
 
     hf_model = params["hf_model"]
     if hf_model is not None:
@@ -121,24 +121,41 @@ def main(**params):
         .agg({"token": " ".join})
         .rename(columns={"token": "sentence"})
     )
-    dataset = datasets.Dataset.from_pandas(sentence_level).map(
-        lambda df: tokenizer(df["sentence"], truncation=True, padding="max_length"),
-        batched=True,
-    )
-
     if tr_path is not None:
+        # sentence_level = sentence_level.sample(frac=1).reset_index(drop=True).head(n=n)
+        logging.info(f"Tokenizing dataset and splitting into training and testing")
+        tr_dataset = datasets.Dataset.from_pandas(sentence_level).map(
+            lambda df: tokenizer(df["sentence"], padding="longest"),
+            batched=True
+        ).shuffle()
+
+        # For streaming
+        # with tempfile.NamedTemporaryFile(dir=ds_path.parent) as trfile:
+        #tmp_file = ds_path.parent / f"{ds_path.name}.tmp"
+        #tr_dataset.save_to_disk(tmp_file)
+        #streamed_dataset = datasets.IterableDataset(tr_dataset)
+        #train_dataset = streamed_dataset.take(sentence_level.shape[0] // 0.8)
+        #eval_dataset = streamed_dataset.take(sentence_level.shape[0] - sentence_level.shape[0] // 0.8)
+
+        ds = tr_dataset.select(range(1000)).train_test_split(test_size=0.2)
+        train_dataset = ds["train"]
+        eval_dataset = ds["test"]
+        logging.success("Successfully tokenized and split dataset")
+
         # metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
         # dc = collators.DataCollatorForPreciseLanguageModeling(tokenizer=tokenizer, dataset=ds)
         tr_args = TrainingArguments(
             output_dir=out,
             evaluation_strategy="epoch",
+            optim="adamw_torch"
             # remove_unused_columns=False
         )
 
         trainer = Trainer(
             model=model,
             args=tr_args,
-            train_dataset=dataset,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
             # compute_metrics=lambda ep: _compute_metrics(metric, ep),
             data_collator=DataCollatorForLanguageModeling(tokenizer),
         )
