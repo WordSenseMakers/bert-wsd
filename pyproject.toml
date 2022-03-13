@@ -17,6 +17,7 @@ transformers = "^4.16.2"
 tqdm = "^4.63.0"
 datasets = "^1.18.3"
 numpy = "^1.21"
+torch = "^1.11.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.0.1"
