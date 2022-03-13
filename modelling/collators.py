@@ -8,6 +8,7 @@ from transformers.data.data_collator import (
     _tf_collate_batch,
     _torch_collate_batch,
 )
+from transformers import BatchEncoding
 
 from datagen.dataset import SemCorDataSet
 
