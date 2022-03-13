@@ -125,7 +125,7 @@ def main(**params):
         # sentence_level = sentence_level.sample(frac=1).reset_index(drop=True).head(n=n)
         logging.info(f"Tokenizing dataset and splitting into training and testing")
         tr_dataset = datasets.Dataset.from_pandas(sentence_level).map(
-            lambda df: tokenizer(df["sentence"], padding="longest"),
+            lambda df: tokenizer(df["sentence"], padding="longest", truncation="longest_first"),
             batched=True
         ).shuffle()
 
