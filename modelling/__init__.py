@@ -147,8 +147,8 @@ def main(**params):
         tr_args = TrainingArguments(
             output_dir=out,
             evaluation_strategy="epoch",
-            optim="adamw_torch"
-            # remove_unused_columns=False
+            optim="adamw_torch",
+            remove_unused_columns=False
         )
 
         trainer = Trainer(
@@ -157,7 +157,7 @@ def main(**params):
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
             # compute_metrics=lambda ep: _compute_metrics(metric, ep),
-            data_collator=DataCollatorForLanguageModeling(tokenizer),
+            data_collator=collators.DataCollatorForPreciseLanguageModeling(tokenizer),
         )
         trainer.train()
         trainer.save_model(out)

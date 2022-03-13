@@ -171,6 +171,8 @@ class DataCollatorForPreciseLanguageModeling(DataCollatorMixin):
                 )
             }
 
+        print(batch)
+
         # If special token mask has been preprocessed, pop it from the dict.
         special_tokens_mask = batch.pop("special_tokens_mask", None)
         if self.mlm:
