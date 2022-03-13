@@ -91,10 +91,10 @@ def main(**params):
         if hf_model == "bert-wwm":
             model_name = "bert-large-uncased-whole-word-masking"
         elif hf_model == "roberta":
-            model_name = "roberta-large"
+            model_name = "roberta-base"
         else:
             assert hf_model == "deberta"
-            model_name = "microsoft/deberta-large"
+            model_name = "microsoft/deberta-base"
         logging.info(
             f"Fetching {params['hf_model']} ({model_name}) from huggingface ..."
         )
