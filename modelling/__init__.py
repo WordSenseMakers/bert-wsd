@@ -13,7 +13,7 @@ import datasets
 import torch
 
 import colour_logging as logging
-from . import collators, metrics
+from . import collators, metrics, trainer as trnr
 from datagen.dataset import SemCorDataSet
 
 
@@ -127,7 +127,7 @@ def main(**params):
         tr_dataset = datasets.Dataset.from_pandas(sentence_level).map(
             lambda df: tokenizer(df["sentence"], padding="longest", truncation="longest_first"),
             batched=True
-        ).shuffle()
+        ).select(range(10))#.shuffle()
 
         # For streaming
         # with tempfile.NamedTemporaryFile(dir=ds_path.parent) as trfile:
@@ -151,16 +151,19 @@ def main(**params):
             remove_unused_columns=False
         )
 
-        trainer = Trainer(
+        trainer = trnr.WordSenseTrainer(
             model=model,
+            dataset=ds,
+            tokenizer=tokenizer,
             args=tr_args,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            # compute_metrics=lambda ep: _compute_metrics(metric, ep),
-            data_collator=collators.DataCollatorForPreciseLanguageModeling(tokenizer, dataset=ds),
+            #compute_metrics=lambda ep: _compute_metrics(metric, ep),
+            data_collator=DataCollatorForLanguageModeling(tokenizer),
         )
         trainer.train()
         trainer.save_model(out)
+
 
 
 def _compute_metrics(metric, eval_pred):
