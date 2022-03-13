@@ -157,7 +157,7 @@ def main(**params):
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
             # compute_metrics=lambda ep: _compute_metrics(metric, ep),
-            data_collator=collators.DataCollatorForPreciseLanguageModeling(tokenizer),
+            data_collator=collators.DataCollatorForPreciseLanguageModeling(tokenizer, dataset=ds),
         )
         trainer.train()
         trainer.save_model(out)
