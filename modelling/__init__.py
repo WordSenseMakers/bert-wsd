@@ -137,7 +137,7 @@ def main(**params):
         #train_dataset = streamed_dataset.take(sentence_level.shape[0] // 0.8)
         #eval_dataset = streamed_dataset.take(sentence_level.shape[0] - sentence_level.shape[0] // 0.8)
 
-        ds = tr_dataset.select(range(1000)).train_test_split(test_size=0.2)
+        ds = tr_dataset.train_test_split(test_size=0.2)
         train_dataset = ds["train"]
         eval_dataset = ds["test"]
         logging.success("Successfully tokenized and split dataset")
