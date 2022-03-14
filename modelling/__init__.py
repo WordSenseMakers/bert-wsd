@@ -148,7 +148,7 @@ def main(**params):
             output_dir=out,
             evaluation_strategy="epoch",
             optim="adamw_torch",
-            remove_unused_columns=False
+            # remove_unused_columns=False
         )
 
         trainer = trnr.WordSenseTrainer(
