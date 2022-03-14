@@ -163,7 +163,31 @@ def main(**params):
         )
         trainer.train()
         trainer.save_model(out)
+    
+    elif ts_path is not None:
+        trainer = Trainer(
+            model=model,
+            eval_dataset=dataset,
+            #compute_metrics=lambda ep: _compute_metrics(metric, ep),
+            data_collator=DataCollatorForLanguageModeling(tokenizer),
+        )
 
+        trainer.evaluate()
+
+    else:
+        raise AssertionError("Both training and testing were None!")
+
+def _compute_metrics(metric, eval_pred):
+    logits, labels = eval_pred
+    predictions = np.argmax(logits, axis=-1)
+    wss = metric.compute(predictions=predictions, reference=labels)
+    precision, recall, f1, _ = precision_recall_fscore_support(labels, predictions, average='weighted')
+    return {
+        'wss': wss,
+        'f1': f1,
+        'precision': precision,
+        'recall': recall
+    }
 
 
 def _compute_metrics(metric, eval_pred):
