@@ -165,14 +165,23 @@ def main(**params):
         trainer.save_model(out)
     
     elif ts_path is not None:
+        ds = datasets.Dataset.from_pandas(sentence_level).map(
+            lambda df: tokenizer(df["sentence"], padding="longest", truncation="longest_first"),
+            batched=True
+        ).select(range(10))#.shuffle()
+
+        metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
+
         trainer = Trainer(
             model=model,
-            eval_dataset=dataset,
-            #compute_metrics=lambda ep: _compute_metrics(metric, ep),
+            eval_dataset=ds,
+            compute_metrics=lambda ep: _compute_metrics(metric, ep),
             data_collator=DataCollatorForLanguageModeling(tokenizer),
         )
 
-        trainer.evaluate()
+        eval_metrics = trainer.evaluate()
+
+        print(eval_metrics)
 
     else:
         raise AssertionError("Both training and testing were None!")
@@ -180,21 +189,15 @@ def main(**params):
 def _compute_metrics(metric, eval_pred):
     logits, labels = eval_pred
     predictions = np.argmax(logits, axis=-1)
-    wss = metric.compute(predictions=predictions, reference=labels)
-    precision, recall, f1, _ = precision_recall_fscore_support(labels, predictions, average='weighted')
+    #wss = metric.compute(predictions=predictions, reference=labels)
+    #precision, recall, f1, _ = precision_recall_fscore_support(labels, predictions, average='weighted')
     return {
-        'wss': wss,
-        'f1': f1,
-        'precision': precision,
-        'recall': recall
+        #'wss': wss,
+        #'f1': f1,
+        #'precision': precision,
+        #'recall': recall.
+        'test': 'compute_metrics is working'
     }
-
-
-def _compute_metrics(metric, eval_pred):
-    logits, labels = eval_pred
-    predictions = np.argmax(logits, axis=-1)
-    return metric.compute(predictions=predictions, references=labels)
-
 
 if __name__ == "__main__":
     main()
