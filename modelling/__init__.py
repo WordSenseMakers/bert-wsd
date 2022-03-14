@@ -168,12 +168,13 @@ def main(**params):
         trainer.save_model(out)
     
     elif ts_path is not None:
+        logging.success("Successfully tokenized dataset")
         metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
 
         trainer = Trainer(
             model=model,
             eval_dataset=ds,
-            compute_metrics=lambda ep: _compute_metrics(metric, ep),
+            compute_metrics=lambda ep: _compute_metrics(model, metric, ep),
             data_collator=DataCollatorForLanguageModeling(tokenizer),
         )
 
@@ -185,16 +186,29 @@ def main(**params):
     else:
         raise AssertionError("Both training and testing were None!")
 
-def _compute_metrics(metric, eval_pred):
+def _compute_metrics(model, metric, eval_pred):
     logits, labels = eval_pred
-    predictions = np.argmax(logits, axis=-1)
-    #wss = metric.compute(predictions=predictions, reference=labels)
-    #precision, recall, f1, _ = precision_recall_fscore_support(labels, predictions, average='weighted')
+    mask_mask = (labels != -100)
+    predictions = np.argmax(logits, axis=-1)[mask_mask].flatten()
+    reference = labels[mask_mask].flatten()
+    
+    #wss = metric.compute(predictions=predictions, reference=reference)
+    
+    logging.info(f"Fetching metrics from huggingface ...")
+    accuracy = datasets.load_metric('accuracy')
+    precision = datasets.load_metric('precision')
+    recall = datasets.load_metric('recall')
+    f1 = datasets.load_metric('f1')
+    logging.success("Loaded metrics")
+
+    average = 'micro'
+    
     return {
         #'wss': wss,
-        #'f1': f1,
-        #'precision': precision,
-        #'recall': recall.
+        'accuracy': accuracy._compute(predictions, reference)['accuracy'],
+        'precision': precision._compute(predictions, reference, average=average)['precision'],
+        'recall': recall._compute(predictions, reference, average=average)['recall'],
+        'f1_score': f1._compute(predictions, reference, average=average)['f1'],
         'test': 'compute_metrics is working'
     }
 
