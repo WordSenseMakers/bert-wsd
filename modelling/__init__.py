@@ -13,7 +13,7 @@ import datasets
 import torch
 
 import colour_logging as logging
-from . import collators, metrics
+from . import collators, metrics, trainer as trnr
 from datagen.dataset import SemCorDataSet
 
 
@@ -91,10 +91,10 @@ def main(**params):
         if hf_model == "bert-wwm":
             model_name = "bert-large-uncased-whole-word-masking"
         elif hf_model == "roberta":
-            model_name = "roberta-large"
+            model_name = "roberta-base"
         else:
             assert hf_model == "deberta"
-            model_name = "microsoft/deberta-large"
+            model_name = "microsoft/deberta-base"
         logging.info(
             f"Fetching {params['hf_model']} ({model_name}) from huggingface ..."
         )
@@ -125,9 +125,9 @@ def main(**params):
         # sentence_level = sentence_level.sample(frac=1).reset_index(drop=True).head(n=n)
         logging.info(f"Tokenizing dataset and splitting into training and testing")
         tr_dataset = datasets.Dataset.from_pandas(sentence_level).map(
-            lambda df: tokenizer(df["sentence"], padding="longest"),
+            lambda df: tokenizer(df["sentence"], padding="longest", truncation="longest_first"),
             batched=True
-        ).shuffle()
+        ).select(range(10))#.shuffle()
 
         # For streaming
         # with tempfile.NamedTemporaryFile(dir=ds_path.parent) as trfile:
@@ -137,7 +137,7 @@ def main(**params):
         #train_dataset = streamed_dataset.take(sentence_level.shape[0] // 0.8)
         #eval_dataset = streamed_dataset.take(sentence_level.shape[0] - sentence_level.shape[0] // 0.8)
 
-        ds = tr_dataset.select(range(1000)).train_test_split(test_size=0.2)
+        ds = tr_dataset.train_test_split(test_size=0.2)
         train_dataset = ds["train"]
         eval_dataset = ds["test"]
         logging.success("Successfully tokenized and split dataset")
@@ -147,20 +147,23 @@ def main(**params):
         tr_args = TrainingArguments(
             output_dir=out,
             evaluation_strategy="epoch",
-            optim="adamw_torch"
+            optim="adamw_torch",
             # remove_unused_columns=False
         )
 
-        trainer = Trainer(
+        trainer = trnr.WordSenseTrainer(
             model=model,
+            dataset=ds,
+            tokenizer=tokenizer,
             args=tr_args,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            # compute_metrics=lambda ep: _compute_metrics(metric, ep),
+            #compute_metrics=lambda ep: _compute_metrics(metric, ep),
             data_collator=DataCollatorForLanguageModeling(tokenizer),
         )
         trainer.train()
         trainer.save_model(out)
+
 
 
 def _compute_metrics(metric, eval_pred):

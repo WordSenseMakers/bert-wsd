@@ -8,6 +8,7 @@ from transformers.data.data_collator import (
     _tf_collate_batch,
     _torch_collate_batch,
 )
+from transformers import BatchEncoding
 
 from datagen.dataset import SemCorDataSet
 
@@ -170,6 +171,8 @@ class DataCollatorForPreciseLanguageModeling(DataCollatorMixin):
                     examples, self.tokenizer, pad_to_multiple_of=self.pad_to_multiple_of
                 )
             }
+
+        print(batch)
 
         # If special token mask has been preprocessed, pop it from the dict.
         special_tokens_mask = batch.pop("special_tokens_mask", None)

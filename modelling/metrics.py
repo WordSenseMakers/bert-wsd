@@ -81,4 +81,4 @@ class WordSenseSimilarity(datasets.Metric):
             for pred_synset_set, ref_synset in zip(pred_synsets, ref_synsets)
         ]
 
-        return {"accuracy": statistics.fmean(similarities)}
+        return {"word_sense_distance": sum(similarities)}
