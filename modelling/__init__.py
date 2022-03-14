@@ -121,13 +121,16 @@ def main(**params):
         .agg({"token": " ".join})
         .rename(columns={"token": "sentence"})
     )
+
+    # sentence_level = sentence_level.sample(frac=1).reset_index(drop=True).head(n=n)
+    logging.info(f"Tokenizing dataset")
+    ds = datasets.Dataset.from_pandas(sentence_level).map(
+        lambda df: tokenizer(df["sentence"], padding="longest", truncation="longest_first"),
+        batched=True
+    ).select(range(10))#.shuffle()
+
     if tr_path is not None:
-        # sentence_level = sentence_level.sample(frac=1).reset_index(drop=True).head(n=n)
-        logging.info(f"Tokenizing dataset and splitting into training and testing")
-        tr_dataset = datasets.Dataset.from_pandas(sentence_level).map(
-            lambda df: tokenizer(df["sentence"], padding="longest", truncation="longest_first"),
-            batched=True
-        ).select(range(10))#.shuffle()
+        logging.info(f"Splitting dataset into training and testing")
 
         # For streaming
         # with tempfile.NamedTemporaryFile(dir=ds_path.parent) as trfile:
@@ -137,7 +140,7 @@ def main(**params):
         #train_dataset = streamed_dataset.take(sentence_level.shape[0] // 0.8)
         #eval_dataset = streamed_dataset.take(sentence_level.shape[0] - sentence_level.shape[0] // 0.8)
 
-        ds = tr_dataset.train_test_split(test_size=0.2)
+        ds = ds.train_test_split(test_size=0.2)
         train_dataset = ds["train"]
         eval_dataset = ds["test"]
         logging.success("Successfully tokenized and split dataset")
@@ -165,11 +168,6 @@ def main(**params):
         trainer.save_model(out)
     
     elif ts_path is not None:
-        ds = datasets.Dataset.from_pandas(sentence_level).map(
-            lambda df: tokenizer(df["sentence"], padding="longest", truncation="longest_first"),
-            batched=True
-        ).select(range(10))#.shuffle()
-
         metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
 
         trainer = Trainer(
