@@ -181,7 +181,8 @@ def main(**params):
 
         eval_metrics = trainer.evaluate()
 
-        print(eval_metrics)
+        for k, v in eval_metrics.items():
+            print(f"{k}\t{v}")
 
     else:
         raise AssertionError("Both training and testing were None!")
