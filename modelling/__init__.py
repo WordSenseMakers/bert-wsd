@@ -16,6 +16,8 @@ import colour_logging as logging
 from . import collators, metrics, trainer as trnr
 from datagen.dataset import SemCorDataSet
 
+import nltk
+
 
 @click.command(name="modelling", help="train and test models")
 @optgroup.group(
@@ -114,10 +116,11 @@ def main(**params):
     ds_path = tr_path or ts_path
     logging.info(f"Loading dataset from {ds_path}")
     ds = SemCorDataSet.unpickle(ds_path)
+    ds.generate_int_idx()
     logging.success(f"Loaded dataset")
 
     sentence_level = (
-        ds.df.groupby(["docid", "sntid"])
+        ds.df.groupby(["sentence_idx"])
         .agg({"token": " ".join})
         .rename(columns={"token": "sentence"})
     )
@@ -128,6 +131,7 @@ def main(**params):
             lambda df: tokenizer(df["sentence"], padding="longest", truncation="longest_first"),
             batched=True
         ).select(range(10))#.shuffle()
+        tr_dataset.set_format(type='torch', columns=["input_ids", "sentence_idx"])
 
         # For streaming
         # with tempfile.NamedTemporaryFile(dir=ds_path.parent) as trfile:
@@ -141,6 +145,7 @@ def main(**params):
         train_dataset = ds["train"]
         eval_dataset = ds["test"]
         logging.success("Successfully tokenized and split dataset")
+        nltk.download('omw-1.4')
 
         # metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
         # dc = collators.DataCollatorForPreciseLanguageModeling(tokenizer=tokenizer, dataset=ds)
@@ -148,7 +153,7 @@ def main(**params):
             output_dir=out,
             evaluation_strategy="epoch",
             optim="adamw_torch",
-            # remove_unused_columns=False
+            remove_unused_columns=False
         )
 
         trainer = trnr.WordSenseTrainer(

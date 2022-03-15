@@ -24,11 +24,13 @@ class WordSenseTrainer(Trainer):
         # self.unmasker = pipeline(task="fill-mask", model=self.model, tokenizer=self.tokenizer)
 
     def compute_loss(self, model, inputs: dict, return_outputs=False):
-        model_outputs = model(**inputs)
+        print(inputs)
+        pure_input = inputs.copy()
+        sentence_idx = pure_input.pop("sentence_idx")
+        model_outputs = model(**pure_input)
         sentences = self.tokenizer.batch_decode(inputs["input_ids"])
-        # print(sentences)
 
-        logits = model_outputs.get("logits").detach().numpy()
+        logits = model_outputs.get("logits").cpu().detach().numpy()
         labels = inputs.get("labels")
         predictions = np.argmax(logits, axis=-1)
 

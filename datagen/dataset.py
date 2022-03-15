@@ -34,8 +34,11 @@ class SemCorDataSet:
         return self.df[self.df.id == fullid]["sense-keys"].split(",")
 
     def sentences(self) -> pd.DataFrame:
-        # todo: this does not work! --> sntid is only unique within a document for SemCor
         return self.df.groupby(by=["docid", "sntid"])
+
+    def generate_int_idx(self):
+        # todo to be fixed, right there are clashes
+        self.df['sentence_idx'] = (self.df['docid'].str[1:] + self.df['sntid'].str[1:]).astype(int)
 
     def _check(self):
         missing_columns = list(
