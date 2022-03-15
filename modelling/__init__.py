@@ -10,6 +10,8 @@ from transformers import Trainer, TrainingArguments
 from transformers import DataCollatorForLanguageModeling
 import datasets
 
+from nltk.corpus import wordnet as wn
+
 import torch
 
 import colour_logging as logging
@@ -127,7 +129,7 @@ def main(**params):
     ds = datasets.Dataset.from_pandas(sentence_level).map(
         lambda df: tokenizer(df["sentence"], padding="longest", truncation="longest_first"),
         batched=True
-    ).select(range(10))#.shuffle()
+    ).select(range(100))#.shuffle()
 
     if tr_path is not None:
         logging.info(f"Splitting dataset into training and testing")
@@ -169,12 +171,12 @@ def main(**params):
     
     elif ts_path is not None:
         logging.success("Successfully tokenized dataset")
-        metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
+
 
         trainer = Trainer(
             model=model,
             eval_dataset=ds,
-            compute_metrics=lambda ep: _compute_metrics(model, metric, ep),
+            compute_metrics=lambda ep: _compute_metrics(tokenizer, ep),
             data_collator=DataCollatorForLanguageModeling(tokenizer),
         )
 
@@ -186,14 +188,7 @@ def main(**params):
     else:
         raise AssertionError("Both training and testing were None!")
 
-def _compute_metrics(model, metric, eval_pred):
-    logits, labels = eval_pred
-    mask_mask = (labels != -100)
-    predictions = np.argmax(logits, axis=-1)[mask_mask].flatten()
-    reference = labels[mask_mask].flatten()
-    
-    #wss = metric.compute(predictions=predictions, reference=reference)
-    
+def _compute_metrics(tokenizer, eval_pred):
     logging.info(f"Fetching metrics from huggingface ...")
     accuracy = datasets.load_metric('accuracy')
     precision = datasets.load_metric('precision')
@@ -201,7 +196,28 @@ def _compute_metrics(model, metric, eval_pred):
     f1 = datasets.load_metric('f1')
     logging.success("Loaded metrics")
 
-    average = 'micro'
+    #wss = metric.compute(predictions=predictions, reference=reference)
+
+    logits, labels = eval_pred
+
+    # Get IDs
+    mask_mask = (labels != -100)
+    predictions = np.argmax(logits, axis=-1)[mask_mask].flatten()
+    reference = labels[mask_mask].flatten()
+
+    # Set prediction = reference if there is a synsets overlap
+    def test_for_overlap(prediction: int, reference: int):
+        syn1 = set(wn.synsets(tokenizer.decode(prediction).strip()))
+        syn2 = set(wn.synsets(tokenizer.decode(reference).strip()))
+
+        if len(syn1.intersection(syn2)) > 0:
+            return reference
+
+        return prediction
+
+    predictions = list(map(test_for_overlap, predictions, reference))
+
+    average = 'weighted'
     
     return {
         #'wss': wss,
@@ -209,7 +225,6 @@ def _compute_metrics(model, metric, eval_pred):
         'precision': precision._compute(predictions, reference, average=average)['precision'],
         'recall': recall._compute(predictions, reference, average=average)['recall'],
         'f1_score': f1._compute(predictions, reference, average=average)['f1'],
-        'test': 'compute_metrics is working'
     }
 
 if __name__ == "__main__":
