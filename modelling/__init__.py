@@ -172,7 +172,6 @@ def main(**params):
     elif ts_path is not None:
         logging.success("Successfully tokenized dataset")
 
-
         trainer = Trainer(
             model=model,
             eval_dataset=ds,
@@ -205,8 +204,8 @@ def _compute_metrics(tokenizer, eval_pred):
     predictions = np.argmax(logits, axis=-1)[mask_mask].flatten()
     reference = labels[mask_mask].flatten()
 
-    # Set prediction = reference if there is a synsets overlap
-    def test_for_overlap(prediction: int, reference: int):
+    # Set prediction = reference if there exists a synsets overlap
+    def overlap(prediction: int, reference: int):
         syn1 = set(wn.synsets(tokenizer.decode(prediction).strip()))
         syn2 = set(wn.synsets(tokenizer.decode(reference).strip()))
 
@@ -215,7 +214,7 @@ def _compute_metrics(tokenizer, eval_pred):
 
         return prediction
 
-    predictions = list(map(test_for_overlap, predictions, reference))
+    predictions = list(map(overlap, predictions, reference))
 
     average = 'weighted'
     
