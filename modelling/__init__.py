@@ -116,22 +116,21 @@ def main(**params):
     ds_path = tr_path or ts_path
     logging.info(f"Loading dataset from {ds_path}")
     ds = SemCorDataSet.unpickle(ds_path)
-    ds.generate_int_idx()
     logging.success(f"Loaded dataset")
 
-    sentence_level = (
-        ds.df.groupby(["sentence_idx"])
-        .agg({"token": " ".join})
-        .rename(columns={"token": "sentence"})
-    )
+    logging.info(f"Tokenizing dataset and splitting into training and testing")
+    dataset = datasets.Dataset.from_pandas(ds.sentence_level).map(
+        lambda df: tokenizer(df["sentence"], padding="longest", truncation="longest_first"),
+        batched=True
+    ).shuffle()
+
+    relevant_columns = [column for column in dataset.column_names if column not in ds.sentence_level.columns]
+    relevant_columns.append("sentence_idx")
+    dataset.set_format(type='torch', columns=relevant_columns)
+
     if tr_path is not None:
         # sentence_level = sentence_level.sample(frac=1).reset_index(drop=True).head(n=n)
-        logging.info(f"Tokenizing dataset and splitting into training and testing")
-        tr_dataset = datasets.Dataset.from_pandas(sentence_level).map(
-            lambda df: tokenizer(df["sentence"], padding="longest", truncation="longest_first"),
-            batched=True
-        ).select(range(10))#.shuffle()
-        tr_dataset.set_format(type='torch', columns=["input_ids", "sentence_idx"])
+
 
         # For streaming
         # with tempfile.NamedTemporaryFile(dir=ds_path.parent) as trfile:
@@ -141,9 +140,9 @@ def main(**params):
         #train_dataset = streamed_dataset.take(sentence_level.shape[0] // 0.8)
         #eval_dataset = streamed_dataset.take(sentence_level.shape[0] - sentence_level.shape[0] // 0.8)
 
-        ds = tr_dataset.train_test_split(test_size=0.2)
-        train_dataset = ds["train"]
-        eval_dataset = ds["test"]
+        ds_splits = dataset.train_test_split(test_size=0.2)
+        train_dataset = ds_splits["train"]
+        eval_dataset = ds_splits["test"]
         logging.success("Successfully tokenized and split dataset")
         nltk.download('omw-1.4')
 
@@ -170,10 +169,6 @@ def main(**params):
         trainer.save_model(out)
     
     elif ts_path is not None:
-        ds = datasets.Dataset.from_pandas(sentence_level).map(
-            lambda df: tokenizer(df["sentence"], padding="longest", truncation="longest_first"),
-            batched=True
-        ).select(range(10))#.shuffle()
 
         metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
 
