@@ -117,7 +117,7 @@ def main(**params):
 
     ds_path = tr_path or ts_path
     logging.info(f"Loading dataset from {ds_path}")
-    ds = SemCorDataSet.unpickle(ds_path)
+    ds = SemCorDataSet.unpickle(ds_path, tokenizer.mask_token)
     logging.success(f"Loaded dataset")
 
     logging.info(f"Tokenizing dataset and splitting into training and testing")
@@ -146,7 +146,7 @@ def main(**params):
         train_dataset = ds_splits["train"]
         eval_dataset = ds_splits["test"]
         logging.success("Successfully tokenized and split dataset")
-        nltk.download('omw-1.4')
+        # nltk.download('omw-1.4')
 
         # metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
         # dc = collators.DataCollatorForPreciseLanguageModeling(tokenizer=tokenizer, dataset=ds)
@@ -172,7 +172,7 @@ def main(**params):
     
     elif ts_path is not None:
 
-        metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
+        metric = metrics.WordSenseSimilarity(dataset=ds)
 
         trainer = Trainer(
             model=model,
