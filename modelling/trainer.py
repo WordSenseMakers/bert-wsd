@@ -3,11 +3,13 @@ import string
 from transformers import Trainer, PreTrainedTokenizer, pipeline
 import numpy as np, pandas as pd
 
+import torch
 import datasets, nltk
 from nltk.corpus import wordnet as wn
 
 from datagen.dataset import SemCorDataSet
 from . import metrics
+
 
 
 class WordSenseTrainer(Trainer):
@@ -65,9 +67,7 @@ class WordSenseTrainer(Trainer):
             pred_synsets = wn.synsets(prediction)
             if not pred_synsets:
                 # Determine score based on word embeddings
-                raise Exception(
-                    f"Guessed {prediction} for {sentence}, but needs word embedding lookup"
-                )
+                print(Warning(f"Guessed {prediction} for {sentence}, but needs word embedding lookup"))
 
             else:
                 # Determine score based on word sense
@@ -84,5 +84,5 @@ class WordSenseTrainer(Trainer):
                 # Higher similarity indicates a lesser need for adjustment, so invert (?)
                 scores.append(1 - score)
 
-        loss = sum(scores)
+        loss = torch.FloatTensor(scores)
         return (loss, model_outputs) if return_outputs else loss
