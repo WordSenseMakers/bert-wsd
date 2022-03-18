@@ -6,7 +6,7 @@ import re
 
 def _mask(sentence: str, token: str, tok_pos: int, mask_token: str) -> str:
     assert token in sentence, f"{token} not found in {sentence}"
-    many = sentence.count(token)
+    # many = sentence.count(token)
 
     pattern = fr"\b{token}\b"
 
