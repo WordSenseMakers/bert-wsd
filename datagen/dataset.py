@@ -1,27 +1,28 @@
 import pathlib
 
 import pandas as pd
+import re
 
 
-def _mask(sentence: str, token: str, tokid: str, mask_token: str) -> str:
+def _mask(sentence: str, token: str, tok_pos: int, mask_token: str) -> str:
     assert token in sentence, f"{token} not found in {sentence}"
     many = sentence.count(token)
 
-    approx_offset = int(tokid[1:])
+    pattern = fr"\b{token}\b"
+
+    approx_offset = tok_pos
     start = 0
-    occurrences = []
 
-    original = sentence[:]
-    while True:
-        search = sentence.find(token)
-        if search == -1:
-            break
-        occurrences.append(search)
-        sentence = sentence[search + len(token) :]
+    # Store offset of words in sentence
+    offsets = [g.start(0) for g in re.finditer(pattern, sentence)]
 
-    sentence = original
-    closest = min(occurrences, key=lambda occ: abs(occ - approx_offset))
-    return f"{sentence[:closest]}{mask_token}{sentence[closest + len(token):]}"
+    # Convert sentence offset to word index
+    word_indices = [sentence[:offset].count(" ") for offset in offsets]
+
+    closest, _ = min(zip(offsets, word_indices), key=lambda ow: abs(ow[1] - approx_offset))
+    masked = f"{sentence[:closest]}{mask_token}{sentence[closest + len(token):]}"
+
+    return masked
 
 
 class SemCorDataSet:
@@ -32,6 +33,7 @@ class SemCorDataSet:
         "docid",
         "sntid",
         "tokid",
+        "tokpos",
         "token",
         "lemma",
         "sense-keys",
@@ -54,7 +56,7 @@ class SemCorDataSet:
                 self.token_level, self.sentence_level, on="sentence_idx", how="inner"
             )
             maskable = maskable[maskable["sense-keys"].notna()]
-            maskable["masked"] = maskable[["sentence", "token", "tokid"]].apply(
+            maskable["masked"] = maskable[["sentence", "token", "tokpos"]].apply(
                 lambda cols: _mask(*cols, mask_token), axis=1
             )
             self.masked = maskable[["masked", "token", "sense-keys", "sentence_idx"]]

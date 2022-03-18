@@ -53,7 +53,7 @@ def _create_dataset(xmlfile: str, goldstandard: str) -> SemCorDataSet:
         etree.iterparse(xmlfile, events=("end",), tag="sentence")
     ):
         docid, sntid = elem.attrib["id"].split(".")
-        for child in elem:
+        for tok_pos, child in enumerate(elem):
             if child.tag in ("wf", "instance"):
                 assert child.text is not None, f"{child}"
             if child.tag == "wf":
@@ -63,6 +63,7 @@ def _create_dataset(xmlfile: str, goldstandard: str) -> SemCorDataSet:
                         docid,
                         sntid,
                         np.nan,
+                        tok_pos,
                         child.text,
                         child.attrib["lemma"],
                     )
@@ -75,6 +76,7 @@ def _create_dataset(xmlfile: str, goldstandard: str) -> SemCorDataSet:
                         docid,
                         sntid,
                         tokid,
+                        tok_pos,
                         child.text,
                         child.attrib["lemma"],
                     )
@@ -84,7 +86,7 @@ def _create_dataset(xmlfile: str, goldstandard: str) -> SemCorDataSet:
     logging.success("Loaded tokens and lemmata!\n")
 
     data_df = pd.DataFrame(
-        rows, columns=["id", "docid", "sntid", "tokid", "token", "lemma"]
+        rows, columns=["id", "docid", "sntid", "tokid", "tokpos", "token", "lemma"]
     )
 
     logging.info(f"Loading sense keys from {goldstandard}")
