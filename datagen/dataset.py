@@ -1,14 +1,18 @@
 import pathlib
+import re, string
 
 import pandas as pd
-import re
 
 
 def _mask(sentence: str, token: str, tok_pos: int, mask_token: str) -> str:
     assert token in sentence, f"{token} not found in {sentence}"
     # many = sentence.count(token)
 
-    pattern = fr"\b{token}\b"
+    pattern = (
+        rf"\b{re.escape(token)}"
+        if not any(c in string.punctuation for c in token)
+        else f"{re.escape(token)}"
+    )
 
     approx_offset = tok_pos
     start = 0
@@ -19,7 +23,9 @@ def _mask(sentence: str, token: str, tok_pos: int, mask_token: str) -> str:
     # Convert sentence offset to word index
     word_indices = [sentence[:offset].count(" ") for offset in offsets]
 
-    closest, _ = min(zip(offsets, word_indices), key=lambda ow: abs(ow[1] - approx_offset))
+    closest, _ = min(
+        zip(offsets, word_indices), key=lambda ow: abs(ow[1] - approx_offset)
+    )
     masked = f"{sentence[:closest]}{mask_token}{sentence[closest + len(token):]}"
 
     return masked
