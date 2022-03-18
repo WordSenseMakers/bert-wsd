@@ -10,6 +10,8 @@ from transformers import Trainer, TrainingArguments
 from transformers import DataCollatorForLanguageModeling
 import datasets
 
+from nltk.corpus import wordnet as wn
+
 import torch
 
 import colour_logging as logging
@@ -175,28 +177,55 @@ def main(**params):
         trainer = Trainer(
             model=model,
             eval_dataset=ds,
-            compute_metrics=lambda ep: _compute_metrics(metric, ep),
+            compute_metrics=lambda ep: _compute_metrics(tokenizer, ep),
             data_collator=DataCollatorForLanguageModeling(tokenizer),
         )
 
         eval_metrics = trainer.evaluate()
 
-        print(eval_metrics)
+        for k, v in eval_metrics.items():
+            print(f"{k}\t{v}")
 
     else:
         raise AssertionError("Both training and testing were None!")
 
-def _compute_metrics(metric, eval_pred):
+def _compute_metrics(tokenizer, eval_pred):
+    logging.info(f"Fetching metrics from huggingface ...")
+    accuracy = datasets.load_metric('accuracy')
+    precision = datasets.load_metric('precision')
+    recall = datasets.load_metric('recall')
+    f1 = datasets.load_metric('f1')
+    logging.success("Loaded metrics")
+
+    #wss = metric.compute(predictions=predictions, reference=reference)
+
     logits, labels = eval_pred
-    predictions = np.argmax(logits, axis=-1)
-    #wss = metric.compute(predictions=predictions, reference=labels)
-    #precision, recall, f1, _ = precision_recall_fscore_support(labels, predictions, average='weighted')
+
+    # Get IDs
+    mask_mask = (labels != -100)
+    predictions = np.argmax(logits, axis=-1)[mask_mask].flatten()
+    reference = labels[mask_mask].flatten()
+
+    # Set prediction = reference if there exists a synsets overlap
+    def overlap(prediction: int, reference: int):
+        syn1 = set(wn.synsets(tokenizer.decode(prediction).strip()))
+        syn2 = set(wn.synsets(tokenizer.decode(reference).strip()))
+
+        if len(syn1.intersection(syn2)) > 0:
+            return reference
+
+        return prediction
+
+    predictions = list(map(overlap, predictions, reference))
+
+    average = 'weighted'
+    
     return {
         #'wss': wss,
-        #'f1': f1,
-        #'precision': precision,
-        #'recall': recall.
-        'test': 'compute_metrics is working'
+        'accuracy': accuracy._compute(predictions, reference)['accuracy'],
+        'precision': precision._compute(predictions, reference, average=average)['precision'],
+        'recall': recall._compute(predictions, reference, average=average)['recall'],
+        'f1_score': f1._compute(predictions, reference, average=average)['f1'],
     }
 
 if __name__ == "__main__":
