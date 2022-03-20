@@ -8,7 +8,7 @@ from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
 from transformers import AutoTokenizer, AutoModelForMaskedLM
 from transformers import Trainer, TrainingArguments
 from transformers import DataCollatorForLanguageModeling
-import datasets
+from datasets import Dataset, load_metric
 
 from nltk.corpus import wordnet as wn
 
@@ -16,6 +16,7 @@ import torch
 
 import colour_logging as logging
 from . import collators, metrics, trainer as trnr
+from model import MaskedLMWithSynsetClassification
 from datagen.dataset import SemCorDataSet
 
 import nltk
@@ -103,14 +104,22 @@ def main(**params):
             f"Fetching {params['hf_model']} ({model_name}) from huggingface ..."
         )
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = AutoModelForMaskedLM.from_pretrained(model_name)
+        mlmodel = AutoModelForMaskedLM.from_pretrained(model_name)
 
     else:
+        model_name = params["local_model"]
         logging.info(f"Loading {params['local_model']} from storage ...")
         tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True)
-        model = AutoModelForMaskedLM.from_pretrained(model_name, local_files_only=True)
+        mlmodel = AutoModelForMaskedLM.from_pretrained(
+            model_name, local_files_only=True
+        )
 
-    model = model.to(device)
+    logging.info("Loading classification model ...")
+    tcmodel = AutoModelForTokenClassification.from_pretrained(model_name)
+    logging.success("Loaded classification model")
+
+    mlmodel = mlmodel.to(device)
+    tcmodel = tcmodel.to(device)
 
     logging.success(f"Loaded {model_name}")
     out, tr_path, ts_path = params["output_path"], params["train"], params["test"]
@@ -120,27 +129,44 @@ def main(**params):
     ds = SemCorDataSet.unpickle(ds_path, tokenizer.mask_token)
     logging.success(f"Loaded dataset")
 
-    logging.info(f"Tokenizing dataset and splitting into training and testing")
-    dataset = datasets.Dataset.from_pandas(ds.sentence_level).map(
-        lambda df: tokenizer(df["sentence"], padding="longest", truncation="longest_first"),
-        batched=True
-    ).shuffle()
+    model = MaskedLMWithSynsetClassification(
+        mlmodel=mlmodel,
+        tcmodel=tcmodel,
+        tokenizer=tokenizer,
+        semcor_dataset=ds,
+        #label_count=
+    )
 
-    relevant_columns = [column for column in dataset.column_names if column not in ds.sentence_level.columns]
+    logging.info(f"Tokenizing dataset and splitting into training and testing")
+    dataset = (
+        Dataset.from_pandas(ds.sentence_level)
+        .map(
+            lambda df: tokenizer(
+                df["sentence"], padding="longest", truncation="longest_first"
+            ),
+            batched=True,
+        )
+        .shuffle()
+    )
+
+    relevant_columns = [
+        column
+        for column in dataset.column_names
+        if column not in ds.sentence_level.columns
+    ]
     relevant_columns.append("sentence_idx")
-    dataset.set_format(type='torch', columns=relevant_columns)
+    dataset.set_format(type="torch", columns=relevant_columns)
 
     if tr_path is not None:
         # sentence_level = sentence_level.sample(frac=1).reset_index(drop=True).head(n=n)
 
-
         # For streaming
         # with tempfile.NamedTemporaryFile(dir=ds_path.parent) as trfile:
-        #tmp_file = ds_path.parent / f"{ds_path.name}.tmp"
-        #tr_dataset.save_to_disk(tmp_file)
-        #streamed_dataset = datasets.IterableDataset(tr_dataset)
-        #train_dataset = streamed_dataset.take(sentence_level.shape[0] // 0.8)
-        #eval_dataset = streamed_dataset.take(sentence_level.shape[0] - sentence_level.shape[0] // 0.8)
+        # tmp_file = ds_path.parent / f"{ds_path.name}.tmp"
+        # tr_dataset.save_to_disk(tmp_file)
+        # streamed_dataset = IterableDataset(tr_dataset)
+        # train_dataset = streamed_dataset.take(sentence_level.shape[0] // 0.8)
+        # eval_dataset = streamed_dataset.take(sentence_level.shape[0] - sentence_level.shape[0] // 0.8)
 
         ds_splits = dataset.train_test_split(test_size=0.2)
         train_dataset = ds_splits["train"]
@@ -154,7 +180,7 @@ def main(**params):
             output_dir=out,
             evaluation_strategy="epoch",
             optim="adamw_torch",
-            remove_unused_columns=False
+            remove_unused_columns=False,
         )
 
         trainer = trnr.WordSenseTrainer(
@@ -164,18 +190,18 @@ def main(**params):
             args=tr_args,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            #compute_metrics=lambda ep: _compute_metrics(metric, ep),
+            # compute_metrics=lambda ep: _compute_metrics(metric, ep),
             data_collator=DataCollatorForLanguageModeling(tokenizer),
         )
         trainer.train()
         trainer.save_model(out)
-    
+
     elif ts_path is not None:
 
         metric = metrics.WordSenseSimilarity(dataset=ds)
 
         trainer = Trainer(
-            model=model,
+            model=mlmodel,
             eval_dataset=ds,
             compute_metrics=lambda ep: _compute_metrics(tokenizer, ep),
             data_collator=DataCollatorForLanguageModeling(tokenizer),
@@ -189,20 +215,21 @@ def main(**params):
     else:
         raise AssertionError("Both training and testing were None!")
 
+
 def _compute_metrics(tokenizer, eval_pred):
     logging.info(f"Fetching metrics from huggingface ...")
-    accuracy = datasets.load_metric('accuracy')
-    precision = datasets.load_metric('precision')
-    recall = datasets.load_metric('recall')
-    f1 = datasets.load_metric('f1')
+    accuracy = load_metric("accuracy")
+    precision = load_metric("precision")
+    recall = load_metric("recall")
+    f1 = load_metric("f1")
     logging.success("Loaded metrics")
 
-    #wss = metric.compute(predictions=predictions, reference=reference)
+    # wss = metric.compute(predictions=predictions, reference=reference)
 
     logits, labels = eval_pred
 
     # Get IDs
-    mask_mask = (labels != -100)
+    mask_mask = labels != -100
     predictions = np.argmax(logits, axis=-1)[mask_mask].flatten()
     reference = labels[mask_mask].flatten()
 
@@ -218,15 +245,18 @@ def _compute_metrics(tokenizer, eval_pred):
 
     predictions = list(map(overlap, predictions, reference))
 
-    average = 'weighted'
-    
+    average = "weighted"
+
     return {
         #'wss': wss,
-        'accuracy': accuracy._compute(predictions, reference)['accuracy'],
-        'precision': precision._compute(predictions, reference, average=average)['precision'],
-        'recall': recall._compute(predictions, reference, average=average)['recall'],
-        'f1_score': f1._compute(predictions, reference, average=average)['f1'],
+        "accuracy": accuracy._compute(predictions, reference)["accuracy"],
+        "precision": precision._compute(predictions, reference, average=average)[
+            "precision"
+        ],
+        "recall": recall._compute(predictions, reference, average=average)["recall"],
+        "f1_score": f1._compute(predictions, reference, average=average)["f1"],
     }
+
 
 if __name__ == "__main__":
     main()

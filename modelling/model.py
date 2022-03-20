@@ -3,29 +3,30 @@ from transformers import PreTrainedModel, PreTrainedTokenizer, pipeline
 from transformers.modeling_outputs import TokenClassifierOutput
 from datasets import Dataset
 
-import pandas as pd
+import pandas as pd, numpy as np
+
+from dataset.datagen import SemCorDataSet
 
 
 class MaskedLMWithSynsetClassification(nn.Module):
     def __init__(
         self,
         mlmodel: PreTrainedModel,
-        mltokenizer: PreTrainedTokenizer,
         tcmodel: PreTrainedModel,
-        tctokenizer: PreTrainedTokenizer,
-        label_count: int,
+        tokenizer: PreTrainedTokenizer,
+        semcor_dataset: SemCorDataSet,
     ):
         super(MaskedLMWithSynsetClassification, self).__init__()
         self.mlmodel = mlmodel
-        self.mltokenizer = mltokenizer
         self.tcmodel = tcmodel
-        self.tctokenizer = tctokenizer
-        self.dropout = nn.Dropout(0.1)
+        self.tokenizer = tokenizer
+        # self.dropout = nn.Dropout(0.1)
         self.label_count = label_count
+        self.semcor_dataset = semcor_dataset
 
-        self.mlunmasker = pipeline(
+        """ self.mlunmasker = pipeline(
             task="fill-mask", model=self.model, tokenizer=self.tokenizer
-        )
+        ) """
 
     def forward(self, **inputs):
         sentence_idx = inputs.pop("sentence_idx")
@@ -35,6 +36,14 @@ class MaskedLMWithSynsetClassification(nn.Module):
         )
 
         # Execute masking model
+        ml_output = self.mlmodel(**inputs)
+        ml_loss, ml_logits = ml_output
+
+        top_2_logit_idxs = np.argpartition(ml_logits, -2)[-2:]
+        top_2_prediction_idxs = top_2_logit_idxs[np.argsort(ml_logits[top_2_logit_idxs])]
+
+        top_2_predictions = 
+
         unmasked = self.mlunmasker(lossable["masked"].tolist(), top_k=2)
         unmasked_df = pd.concat(
             [
@@ -56,10 +65,10 @@ class MaskedLMWithSynsetClassification(nn.Module):
             unmasked_df, lossable, on="sentence_idx", how="inner"
         )
 
+        # TODO: can this be accomplished using token_id and not need to recall the tokenizer?
         mlpredictions = with_gold_standard.token_str
-
         tc_ds = Dataset.from_pandas(mlpredictions).map(
-            lambda chunk: self.tctokenizer(
+            lambda chunk: self.tokenizer(
                 chunk.token_str, padding="longest", truncation="longest_first"
             ),
             batched=True,
@@ -68,7 +77,8 @@ class MaskedLMWithSynsetClassification(nn.Module):
 
         loss, logits = tc_output
         assert "labels" in inputs
-        cel = nn.CrossEntropyLoss()(logits.view(-1, self.label_count), labels.view(-1))
+        #cel = nn.CrossEntropyLoss()(logits.view(-1, self.label_count), labels.view(-1))
+        cel = nn.CrossEntropyLoss()(logits.view(-1), labels.view(-1))
 
         # TODO: Can we do this without the hidden_states and attentions arguments?
         # TODO: Is it OK to return TokenClassifierOutput even though we want to train a Masked Language Model?
