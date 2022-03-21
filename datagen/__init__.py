@@ -10,6 +10,9 @@ from tqdm import tqdm
 from .dataset import SemCorDataSet
 import colour_logging as logging
 
+from nltk.corpus import wordnet as wn
+
+
 
 @click.command(
     name="datagen", help="transform datasets into a format compatible with the MLMs"
@@ -93,21 +96,31 @@ def _create_dataset(xmlfile: str, goldstandard: str) -> SemCorDataSet:
     gold_df = pd.read_csv(
         goldstandard, sep=" ", names=["id", "sense-key1", "sense-key2", "sense-key3"]
     )
-    gold_df["sense-keys"] = gold_df[["sense-key1", "sense-key2", "sense-key3"]].apply(
-        lambda e: e.str.cat(sep=","), axis=1
-    )
+    # todo reduced to single sense key
+    gold_df["sense-keys"] = gold_df[["sense-key1"]]
     gold_df = gold_df.drop(columns=["sense-key1", "sense-key2", "sense-key3"])
     logging.success(f"Loaded sense keys!\n")
 
     logging.info(f"Merging tokens and lemmata with sense keys")
     df = data_df.merge(gold_df, on="id", how="left")
 
+
+
+    sense_keys = []
+    for synset in wn.all_eng_synsets():
+        for lemma in synset.lemmas():
+            sense_keys.append(lemma.key())
+    sense_keys = pd.DataFrame(list(dict.fromkeys(sense_keys)), columns=["sense-keys"])
+    sense_keys["sense-key-idx"] = pd.factorize(sense_keys["sense-keys"])[0]
+
+
+    df = pd.merge(df, sense_keys, how='left', on='sense-keys')
+
     stats = io.StringIO()
     df.info(buf=stats)
     logging.success(f"Merged!\n")
     logging.info(f"Statistics: {stats.getvalue()}")
     logging.info(f"{df.head()}")
-
     return SemCorDataSet(df)
 
 

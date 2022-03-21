@@ -1,4 +1,5 @@
 from torch import nn
+import torch
 from transformers import PreTrainedModel, PreTrainedTokenizer, pipeline
 from transformers.modeling_outputs import TokenClassifierOutput
 from datasets import Dataset
@@ -12,16 +13,25 @@ class MaskedLMWithSynsetClassification(nn.Module):
     def __init__(
         self,
         mlmodel: PreTrainedModel,
-        tcmodel: PreTrainedModel,
+        num_classes: int,
         tokenizer: PreTrainedTokenizer,
         semcor_dataset: SemCorDataSet,
     ):
         super(MaskedLMWithSynsetClassification, self).__init__()
         self.mlmodel = mlmodel
-        self.tcmodel = tcmodel
         self.tokenizer = tokenizer
+
+        self.classifier = torch.nn.Sequential(
+            [
+                torch.nn.Linear(len(self.tokenizer), 1024),
+                torch.nn.Linear(1024, num_classes)
+            ]
+        )
+
+        self.loss = torch.nn.CrossEntropyLoss()
+
         # self.dropout = nn.Dropout(0.1)
-        self.label_count = label_count
+        self.num_classes = num_classes
         self.semcor_dataset = semcor_dataset
 
         """ self.mlunmasker = pipeline(
@@ -35,14 +45,21 @@ class MaskedLMWithSynsetClassification(nn.Module):
             self.semcor_dataset.masked, sentence_idx_df, how="inner", on="sentence_idx"
         )
 
+        
+
         # Execute masking model
         ml_output = self.mlmodel(**inputs)
         ml_loss, ml_logits = ml_output
 
-        top_2_logit_idxs = np.argpartition(ml_logits, -2)[-2:]
-        top_2_prediction_idxs = top_2_logit_idxs[np.argsort(ml_logits[top_2_logit_idxs])]
+        masked_word_idx = (inputs['labels'] != -100)[0]
+        cl_logits = self.classifier(ml_logits[:, masked_word_idx, :].view(-1, len(self.tokenizer)))
 
-        top_2_predictions = 
+        self.loss(cl_logits, )
+
+        
+
+        top2_idx = torch.topk(ml_logits, k=2)
+        top2_predictions = 
 
         unmasked = self.mlunmasker(lossable["masked"].tolist(), top_k=2)
         unmasked_df = pd.concat(

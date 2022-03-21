@@ -43,6 +43,7 @@ class SemCorDataSet:
         "token",
         "lemma",
         "sense-keys",
+        "sense-key-idx"
     )
 
     def __init__(self, df: pd.DataFrame, mask_token=None):
@@ -67,6 +68,7 @@ class SemCorDataSet:
             )
             self.masked = maskable[["masked", "token", "sense-keys", "sentence_idx"]]
         self.mask_token = mask_token
+
 
     @staticmethod
     def unpickle(inpath: pathlib.Path, mask_token=None) -> "SemCorDataSet":

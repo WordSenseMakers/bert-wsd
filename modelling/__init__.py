@@ -16,7 +16,7 @@ import torch
 
 import colour_logging as logging
 from . import collators, metrics, trainer as trnr
-from model import MaskedLMWithSynsetClassification
+# from . import model
 from datagen.dataset import SemCorDataSet
 
 import nltk
