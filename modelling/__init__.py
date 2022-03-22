@@ -5,7 +5,7 @@ import numpy as np
 import click
 from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
 
-from transformers import AutoTokenizer, AutoModelForMaskedLM
+from transformers import AutoTokenizer, AutoModelForMaskedLM, AutoModel
 from transformers import Trainer, TrainingArguments
 from transformers import DataCollatorForLanguageModeling
 from datasets import Dataset, load_metric
@@ -15,8 +15,8 @@ from nltk.corpus import wordnet as wn
 import torch
 
 import colour_logging as logging
+from modelling.model import SynsetClassificationModel
 from . import collators, metrics, trainer as trnr
-# from . import model
 from datagen.dataset import SemCorDataSet
 
 import nltk
@@ -91,9 +91,16 @@ def main(**params):
         device = "cpu"
         logging.info(f"CUDA not found; running on {device}")
 
+    out, tr_path, ts_path = params["output_path"], params["train"], params["test"]
+
+    ds_path = tr_path or ts_path
+    logging.info(f"Loading dataset from {ds_path}")
+    ds = SemCorDataSet.unpickle(ds_path)
+    logging.success(f"Loaded dataset")
+
     hf_model = params["hf_model"]
     if hf_model is not None:
-        if hf_model == "bert-wwm":
+        if hf_model == "bert":
             model_name = "bert-large-uncased-whole-word-masking"
         elif hf_model == "roberta":
             model_name = "roberta-base"
@@ -103,46 +110,29 @@ def main(**params):
         logging.info(
             f"Fetching {params['hf_model']} ({model_name}) from huggingface ..."
         )
+        logging.info("Loading classification model ...")
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        mlmodel = AutoModelForMaskedLM.from_pretrained(model_name)
+        cl_model = SynsetClassificationModel(model_name, ds.all_sense_keys.shape[0])
+        logging.success("Loaded classification model")
 
     else:
         model_name = params["local_model"]
         logging.info(f"Loading {params['local_model']} from storage ...")
         tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True)
-        mlmodel = AutoModelForMaskedLM.from_pretrained(
+        cl_model = AutoModelForMaskedLM.from_pretrained(
             model_name, local_files_only=True
         )
 
-    logging.info("Loading classification model ...")
-    tcmodel = AutoModelForTokenClassification.from_pretrained(model_name)
-    logging.success("Loaded classification model")
-
-    mlmodel = mlmodel.to(device)
-    tcmodel = tcmodel.to(device)
-
+    # ==> base_model_name [ + checkpoint ]
+    cl_model = cl_model.to(device)
     logging.success(f"Loaded {model_name}")
-    out, tr_path, ts_path = params["output_path"], params["train"], params["test"]
-
-    ds_path = tr_path or ts_path
-    logging.info(f"Loading dataset from {ds_path}")
-    ds = SemCorDataSet.unpickle(ds_path, tokenizer.mask_token)
-    logging.success(f"Loaded dataset")
-
-    model = MaskedLMWithSynsetClassification(
-        mlmodel=mlmodel,
-        tcmodel=tcmodel,
-        tokenizer=tokenizer,
-        semcor_dataset=ds,
-        #label_count=
-    )
 
     logging.info(f"Tokenizing dataset and splitting into training and testing")
     dataset = (
         Dataset.from_pandas(ds.sentence_level)
         .map(
             lambda df: tokenizer(
-                df["sentence"], padding="longest", truncation="longest_first"
+                df["sentence"], padding="longest", truncation="longest_first",
             ),
             batched=True,
         )
@@ -201,7 +191,7 @@ def main(**params):
         metric = metrics.WordSenseSimilarity(dataset=ds)
 
         trainer = Trainer(
-            model=mlmodel,
+            model=cl_model,
             eval_dataset=ds,
             compute_metrics=lambda ep: _compute_metrics(tokenizer, ep),
             data_collator=DataCollatorForLanguageModeling(tokenizer),

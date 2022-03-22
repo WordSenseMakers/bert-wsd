@@ -1,62 +1,54 @@
 from torch import nn
 import torch
-from transformers import PreTrainedModel, PreTrainedTokenizer, pipeline
+from transformers import PreTrainedModel, PreTrainedTokenizer, pipeline, AutoModel
 from transformers.modeling_outputs import TokenClassifierOutput
 from datasets import Dataset
 
 import pandas as pd, numpy as np
 
-from dataset.datagen import SemCorDataSet
 
 
-class MaskedLMWithSynsetClassification(nn.Module):
+class SynsetClassificationModel(nn.Module):
     def __init__(
         self,
-        mlmodel: PreTrainedModel,
-        num_classes: int,
-        tokenizer: PreTrainedTokenizer,
-        semcor_dataset: SemCorDataSet,
+        model_name: str,
+        num_classes: int
     ):
-        super(MaskedLMWithSynsetClassification, self).__init__()
-        self.mlmodel = mlmodel
-        self.tokenizer = tokenizer
+        super(SynsetClassificationModel, self).__init__()
+        self.mlmodel = AutoModel.from_pretrained(model_name)
 
+        self.hidden_size = self.mlmodel.config.hidden_size
         self.classifier = torch.nn.Sequential(
-            [
-                torch.nn.Linear(len(self.tokenizer), 1024),
+                torch.nn.Dropout(0.1),
+                torch.nn.Linear(self.hidden_size, 1024),
+                torch.nn.ReLU(),
                 torch.nn.Linear(1024, num_classes)
-            ]
         )
 
-        self.loss = torch.nn.CrossEntropyLoss()
+        self.loss = torch.nn.BCEWithLogitsLoss()
 
-        # self.dropout = nn.Dropout(0.1)
         self.num_classes = num_classes
-        self.semcor_dataset = semcor_dataset
-
-        """ self.mlunmasker = pipeline(
-            task="fill-mask", model=self.model, tokenizer=self.tokenizer
-        ) """
 
     def forward(self, **inputs):
+        targets = inputs.pop("targets")
+
+        # Execute masking model
+        hidden_state, _ = self.mlmodel(**inputs)
+
+        # todo : support multiple masks in one sentence
+        masked_word_idx = (inputs['labels'] != -100)[0]
+        classifier_logits = self.classifier(hidden_state[:, masked_word_idx, :].view(-1, self.hidden_size))
+
+        loss = self.loss(classifier_logits, targets)
+
+        return TokenClassifierOutput(loss=loss, logits=classifier_logits)
+
         sentence_idx = inputs.pop("sentence_idx")
         sentence_idx_df = pd.DataFrame({"sentence_idx": sentence_idx})
         lossable = pd.merge(
             self.semcor_dataset.masked, sentence_idx_df, how="inner", on="sentence_idx"
         )
 
-        
-
-        # Execute masking model
-        ml_output = self.mlmodel(**inputs)
-        ml_loss, ml_logits = ml_output
-
-        masked_word_idx = (inputs['labels'] != -100)[0]
-        cl_logits = self.classifier(ml_logits[:, masked_word_idx, :].view(-1, len(self.tokenizer)))
-
-        self.loss(cl_logits, )
-
-        
 
         top2_idx = torch.topk(ml_logits, k=2)
         top2_predictions = 

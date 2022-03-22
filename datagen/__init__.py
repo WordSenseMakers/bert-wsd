@@ -96,16 +96,6 @@ def _create_dataset(xmlfile: str, goldstandard: str) -> SemCorDataSet:
     gold_df = pd.read_csv(
         goldstandard, sep=" ", names=["id", "sense-key1", "sense-key2", "sense-key3"]
     )
-    # todo reduced to single sense key
-    gold_df["sense-keys"] = gold_df[["sense-key1"]]
-    gold_df = gold_df.drop(columns=["sense-key1", "sense-key2", "sense-key3"])
-    logging.success(f"Loaded sense keys!\n")
-
-    logging.info(f"Merging tokens and lemmata with sense keys")
-    df = data_df.merge(gold_df, on="id", how="left")
-
-
-
     sense_keys = []
     for synset in wn.all_eng_synsets():
         for lemma in synset.lemmas():
@@ -113,8 +103,18 @@ def _create_dataset(xmlfile: str, goldstandard: str) -> SemCorDataSet:
     sense_keys = pd.DataFrame(list(dict.fromkeys(sense_keys)), columns=["sense-keys"])
     sense_keys["sense-key-idx"] = pd.factorize(sense_keys["sense-keys"])[0]
 
+    gold_df["sense-key-idx1"] = pd.merge(gold_df, sense_keys, how='left', left_on="sense-key1", right_on="sense-keys")["sense-key-idx"]
+    gold_df["sense-key-idx2"] = pd.merge(gold_df, sense_keys, how='left', left_on="sense-key2", right_on="sense-keys")["sense-key-idx"]
+    gold_df["sense-key-idx3"] = pd.merge(gold_df, sense_keys, how='left', left_on="sense-key3", right_on="sense-keys")["sense-key-idx"]
 
-    df = pd.merge(df, sense_keys, how='left', on='sense-keys')
+    gold_df["sense-keys"] = gold_df[["sense-key1", "sense-key2", "sense-key3"]].apply(
+        lambda e: e.str.cat(sep=","), axis=1
+    )
+    gold_df = gold_df.drop(columns=["sense-key1", "sense-key2", "sense-key3"])
+    logging.success(f"Loaded sense keys!\n")
+
+    logging.info(f"Merging tokens and lemmata with sense keys")
+    df = data_df.merge(gold_df, on="id", how="left")
 
     stats = io.StringIO()
     df.info(buf=stats)

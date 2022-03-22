@@ -2,6 +2,7 @@ import pathlib
 import re, string
 
 import pandas as pd
+from nltk.corpus import wordnet as wn
 
 
 def _mask(sentence: str, token: str, tok_pos: int, mask_token: str) -> str:
@@ -43,37 +44,51 @@ class SemCorDataSet:
         "token",
         "lemma",
         "sense-keys",
-        "sense-key-idx"
+        "sense-key-idx1",
+        "sense-key-idx2",
+        "sense-key-idx3"
     )
 
-    def __init__(self, df: pd.DataFrame, mask_token=None):
+    def __init__(self, df: pd.DataFrame):
         self.token_level = df
         self._check()
         self.token_level["sentence_idx"] = pd.factorize(
             self.token_level["docid"] + self.token_level["sntid"]
         )[0]
-        if mask_token is not None:
-            self.sentence_level = (
-                self.token_level.groupby(["sentence_idx"])
-                .agg({"token": " ".join})
-                .rename(columns={"token": "sentence"})
-                .reset_index()
-            )
-            maskable = pd.merge(
-                self.token_level, self.sentence_level, on="sentence_idx", how="inner"
-            )
-            maskable = maskable[maskable["sense-keys"].notna()]
-            maskable["masked"] = maskable[["sentence", "token", "tokpos"]].apply(
-                lambda cols: _mask(*cols, mask_token), axis=1
-            )
-            self.masked = maskable[["masked", "token", "sense-keys", "sentence_idx"]]
-        self.mask_token = mask_token
+        self.sentence_level = (
+            self.token_level.groupby(["sentence_idx"])
+            .agg({"token": " ".join})
+            .rename(columns={"token": "sentence"})
+            .reset_index()
+        )
+        # if mask_token is not None:
+        #     self.sentence_level = (
+        #         self.token_level.groupby(["sentence_idx"])
+        #         .agg({"token": " ".join})
+        #         .rename(columns={"token": "sentence"})
+        #         .reset_index()
+        #     )
+        #     maskable = pd.merge(
+        #         self.token_level, self.sentence_level, on="sentence_idx", how="inner"
+        #     )
+        #     maskable = maskable[maskable["sense-keys"].notna()]
+        #     maskable["masked"] = maskable[["sentence", "token", "tokpos"]].apply(
+        #         lambda cols: _mask(*cols, mask_token), axis=1
+        #     )
+        #     self.masked = maskable[["masked", "token", "sense-keys", "sentence_idx"]]
+        # self.mask_token = mask_token
+        sense_keys = []
+        for synset in wn.all_eng_synsets():
+            for lemma in synset.lemmas():
+                sense_keys.append(lemma.key())
+        self.all_sense_keys = pd.DataFrame(list(dict.fromkeys(sense_keys)), columns=["sense-keys"])
+        self.all_sense_keys["sense-key-idx"] = pd.factorize(self.all_sense_keys["sense-keys"])[0]
 
 
     @staticmethod
-    def unpickle(inpath: pathlib.Path, mask_token=None) -> "SemCorDataSet":
+    def unpickle(inpath: pathlib.Path) -> "SemCorDataSet":
         df = pd.read_pickle(inpath)
-        return SemCorDataSet(df, mask_token)
+        return SemCorDataSet(df)
 
     def pickle(self, out: pathlib.Path):
         out.parent.mkdir(parents=True, exist_ok=True)
