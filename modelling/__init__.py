@@ -1,6 +1,6 @@
 import pathlib
 
-import numpy as np
+import numpy as np, pandas as pd
 
 import click
 from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
@@ -127,17 +127,59 @@ def main(**params):
     cl_model = cl_model.to(device)
     logging.success(f"Loaded {model_name}")
 
-    logging.info(f"Tokenizing dataset and splitting into training and testing")
-    dataset = (
-        Dataset.from_pandas(ds.sentence_level)
-        .map(
-            lambda df: tokenizer(
-                df["sentence"], padding="longest", truncation="longest_first",
-            ),
-            batched=True,
+    def map_data(chunk: Dataset) -> dict:
+        # map sense key for each token or falsy value (-100)
+        tokenized = tokenizer(
+            chunk["sentence"],
+            padding="longest",
+            truncation="longest_first",
         )
-        .shuffle()
+
+        idxs = (
+            chunk["sentence_idx"]
+            if isinstance(chunk["sentence_idx"], list)
+            else [chunk["sentence_idx"]]
+        )
+        tokens2senses = pd.merge(
+            ds.token_level,
+            pd.DataFrame(idxs, columns=["sentence_idx"]),
+            how="inner",
+            on="sentence_idx",
+        )
+
+        labels = []
+        for i, sentence_idx in enumerate(idxs):
+            # Map tokens to their respective word.
+            word_ids = tokenized.word_ids(batch_index=i)
+            previous_word_idx = None
+            label_ids = []
+            for word_idx in word_ids:  # Set the special tokens to -100.
+                if word_idx is None:
+                    label_ids.append(-100)
+                elif (
+                    word_idx != previous_word_idx
+                ):  # Only label the first token of a given word.
+                    r = tokens2senses[tokens2senses.sentence_idx == sentence_idx]
+                    token_df = r[r.tokpos == word_idx]
+
+                    if token_df["sense-keys"].isna().all():
+                        # TODO: Figure out falsy value
+                        label_ids.append(None)
+                    else:
+                        label_ids.append(int(token_df["sense-key-idx1"].iloc[0]))
+                else:
+                    label_ids.append(-100)
+                previous_word_idx = word_idx
+            labels.append(label_ids)
+
+        tokenized["labels"] = labels
+        return tokenized
+
+    logging.info(f"Preprocessing dataset and splitting into training and testing")
+    dataset = (
+        Dataset.from_pandas(ds.sentence_level).map(map_data, batched=True).shuffle()
     )
+    print(dataset)
 
     relevant_columns = [
         column

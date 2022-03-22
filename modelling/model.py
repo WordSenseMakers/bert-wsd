@@ -51,7 +51,7 @@ class SynsetClassificationModel(nn.Module):
 
 
         top2_idx = torch.topk(ml_logits, k=2)
-        top2_predictions = 
+        # top2_predictions = 
 
         unmasked = self.mlunmasker(lossable["masked"].tolist(), top_k=2)
         unmasked_df = pd.concat(
