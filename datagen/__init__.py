@@ -13,10 +13,12 @@ from .dataset import SemCorDataSet
 from datasets import Dataset
 
 import colour_logging as logging
+import os
 
 from nltk.corpus import wordnet as wn
 
 BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
+
 
 @click.command(
     name="datagen", help="transform datasets into a format compatible with the MLMs"
@@ -64,13 +66,12 @@ def main(**params):
     semcor_ds.pickle(sc_op)
 
 
-
 def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
     rows = list()
 
     logging.info(f"Loading tokens and lemmata from {xmlfile}")
     for event, elem in tqdm(
-        etree.iterparse(xmlfile, events=("end",), tag="sentence")
+            etree.iterparse(xmlfile, events=("end",), tag="sentence")
     ):
         docid, sntid = elem.attrib["id"].split(".")
         for tok_pos, child in enumerate(elem):
@@ -113,20 +114,13 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
     gold_df = pd.read_csv(
         goldstandard, sep=" ", names=["id", "sense-key1", "sense-key2", "sense-key3"]
     )
-    sense_keys = []
-    for synset in wn.all_eng_synsets():
-        for lemma in synset.lemmas():
-            sense_keys.append(lemma.key())
-    sense_keys = pd.DataFrame(list(dict.fromkeys(sense_keys)), columns=["sense-keys"])
-    sense_keys["sense-key-idx"] = pd.factorize(sense_keys["sense-keys"])[0]
 
-    gold_df["sense-key-idx1"] = pd.merge(gold_df, sense_keys, how='left', left_on="sense-key1", right_on="sense-keys")["sense-key-idx"]
-    gold_df["sense-key-idx2"] = pd.merge(gold_df, sense_keys, how='left', left_on="sense-key2", right_on="sense-keys")["sense-key-idx"]
-    gold_df["sense-key-idx3"] = pd.merge(gold_df, sense_keys, how='left', left_on="sense-key3", right_on="sense-keys")["sense-key-idx"]
+    sense_keys = pd.DataFrame(gold_df['sense-key1'][gold_df['sense-key1'].notna()].unique(), columns=["sense-key1"])
+    sense_keys["sense-key-idx"] = pd.factorize(sense_keys["sense-key1"])[0]
 
-    gold_df["sense-keys"] = gold_df[["sense-key1", "sense-key2", "sense-key3"]].apply(
-        lambda e: e.str.cat(sep=","), axis=1
-    )
+    gold_df["sense-key-idx1"] = pd.merge(gold_df, sense_keys, how='left', on="sense-key1")["sense-key-idx"]
+
+    gold_df["sense-keys"] = gold_df["sense-key1"]
     gold_df = gold_df.drop(columns=["sense-key1", "sense-key2", "sense-key3"])
     logging.success(f"Loaded sense keys!\n")
 
@@ -138,12 +132,13 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
     tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
 
     # todo: multi label classification
-    def map_data(chunk: Dataset) -> dict:
+    def map_data(chunk: Dataset, max_length: int) -> dict:
         # map sense key for each token or falsy value (-100)
         tokenized = tokenizer(
             chunk["sentence"],
             padding="max_length",
             truncation="longest_first",
+            max_length=max_length
         )
 
         idxs = (
@@ -168,8 +163,8 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
                 if word_idx is None:
                     label_ids.append(-100)
                 elif (
-                    # Only label the first token of a given word.
-                    word_idx != previous_word_idx or pretrained_model_name == BERT_WHOLE_WORD_MASKING
+                        # Only label the first token of a given word.
+                        word_idx != previous_word_idx or pretrained_model_name == BERT_WHOLE_WORD_MASKING
                 ):
                     r = tokens2senses[tokens2senses.sentence_idx == sentence_idx]
                     token_df = r[r.tokpos == word_idx]
@@ -190,8 +185,9 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
         return tokenized
 
     logging.info(f"Preprocessing HuggingFace dataset")
+    max_length = data_set.token_level.tokpos.max() + 20
     hugging_dataset = (
-        Dataset.from_pandas(data_set.sentence_level).map(map_data, batched=True)
+        Dataset.from_pandas(data_set.sentence_level).map(lambda chunk: map_data(chunk, max_length), batched=True)
     )
 
     stats = io.StringIO()

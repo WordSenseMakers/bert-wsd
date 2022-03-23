@@ -23,22 +23,23 @@ class SynsetClassificationModel(nn.Module):
                 torch.nn.Linear(1024, num_classes)
         )
 
-        self.loss = torch.nn.CrossEntropyLoss()
+        self.loss = torch.nn.CrossEntropyLoss(ignore_index=-100)
 
         self.num_classes = num_classes
 
     def forward(self, **inputs):
-        labels = inputs.pop("labels")
-        sentence_idx = inputs.pop("sentence_idx")
+        masked_labels = inputs.pop("labels")
+        sense_labels = inputs.pop("sense-labels")
+
+        sense_labels[masked_labels == -100] = -100
         # Execute masking model
         transformer_output = self.mlmodel(**inputs)
         hidden_state = transformer_output.last_hidden_state
-        # todo : support multiple masks in one sentence
-        masked_word_idx = (labels != -100)
-        classifier_logits = self.classifier(hidden_state[:, masked_word_idx, :].view(-1, self.hidden_size))
 
-        targets = labels[:, masked_word_idx].unsqueeze(dim=-1)
-        loss = self.loss(classifier_logits, targets)
+        # masked_word_idx = (labels != -100)
+        classifier_logits = self.classifier(hidden_state.view(-1, self.hidden_size))
+
+        loss = self.loss(classifier_logits.view(-1, self.num_classes), sense_labels.view(-1))
 
         return TokenClassifierOutput(loss=loss, logits=classifier_logits)
 

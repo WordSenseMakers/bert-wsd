@@ -124,12 +124,13 @@ def main(**params):
     cl_model = cl_model.to(device)
     logging.success(f"Loaded {model_name}")
 
+    hf_ds = hf_ds.add_column("sense-labels", hf_ds['labels'])
     relevant_columns = [
         column
         for column in hf_ds.column_names
         if column not in ds.sentence_level.columns
     ]
-    relevant_columns.append("sentence_idx")
+    relevant_columns.append("sense-labels")
     hf_ds.set_format(type="torch", columns=relevant_columns)
 
     if tr_path is not None:
