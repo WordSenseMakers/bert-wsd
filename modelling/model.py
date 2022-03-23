@@ -28,16 +28,16 @@ class SynsetClassificationModel(nn.Module):
         self.num_classes = num_classes
 
     def forward(self, **inputs):
-        labels = inputs["labels"]
-
+        labels = inputs.pop("labels")
+        sentence_idx = inputs.pop("sentence_idx")
         # Execute masking model
-        hidden_state, _ = self.mlmodel(**inputs)
-
+        transformer_output = self.mlmodel(**inputs)
+        hidden_state = transformer_output.last_hidden_state
         # todo : support multiple masks in one sentence
-        masked_word_idx = (labels != -100)[0]
+        masked_word_idx = (labels != -100)
         classifier_logits = self.classifier(hidden_state[:, masked_word_idx, :].view(-1, self.hidden_size))
 
-        targets = labels[:, masked_word_idx]
+        targets = labels[:, masked_word_idx].unsqueeze(dim=-1)
         loss = self.loss(classifier_logits, targets)
 
         return TokenClassifierOutput(loss=loss, logits=classifier_logits)

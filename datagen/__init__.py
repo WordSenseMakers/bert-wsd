@@ -137,11 +137,12 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
     pretrained_model_name = construct_model_name(model_name)
     tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
 
+    # todo: multi label classification
     def map_data(chunk: Dataset) -> dict:
         # map sense key for each token or falsy value (-100)
         tokenized = tokenizer(
             chunk["sentence"],
-            padding="longest",
+            padding="max_length",
             truncation="longest_first",
         )
 

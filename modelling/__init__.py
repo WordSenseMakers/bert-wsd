@@ -143,7 +143,7 @@ def main(**params):
         # train_dataset = streamed_dataset.take(sentence_level.shape[0] // 0.8)
         # eval_dataset = streamed_dataset.take(sentence_level.shape[0] - sentence_level.shape[0] // 0.8)
 
-        ds_splits = hf_ds.train_test_split(test_size=0.2)
+        ds_splits = hf_ds.train_test_split(test_size=0.2, shuffle=False)
         train_dataset = ds_splits["train"]
         eval_dataset = ds_splits["test"]
         logging.success("Successfully tokenized and split dataset")
