@@ -19,7 +19,7 @@ logger = logging.get_logger(__name__)
 
 class BetterTrainer(Trainer):
     def __init__(self, *args, **kwargs):
-        super(self, Trainer).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def evaluation_loop(
             self,
