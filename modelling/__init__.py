@@ -145,7 +145,7 @@ def main(**params):
     hf_ds.set_format(type="torch", columns=relevant_columns)
 
     if tr_path is not None:
-        ds_splits = hf_ds.train_test_split(test_size=0.2, shuffle=False)
+        ds_splits = hf_ds.train_test_split(test_size=0.2)
         train_dataset = ds_splits["train"]
         eval_dataset = ds_splits["test"]
         logging.success("Successfully split dataset")
