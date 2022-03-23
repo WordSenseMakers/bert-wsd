@@ -104,7 +104,7 @@ def main(**params):
     ds_path = tr_path or ts_path
     logging.info(f"Loading dataset from {ds_path}")
     ds = SemCorDataSet.unpickle(ds_path.with_suffix(".pickle"))
-    hf_ds = Dataset.load_from_disk(ds_path.with_suffix(".hf")).select(range(20))
+    hf_ds = Dataset.load_from_disk(ds_path.with_suffix(".hf"))
     logging.success(f"Loaded dataset")
 
     hf_model = params["hf_model"]
