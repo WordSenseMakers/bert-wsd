@@ -1,12 +1,4 @@
-import logging
-from logging import CRITICAL  # NOQA
-from logging import DEBUG  # NOQA
-from logging import ERROR  # NOQA
-from logging import FATAL  # NOQA
-from logging import INFO  # NOQA
-from logging import NOTSET  # NOQA
-from logging import WARN  # NOQA
-from logging import WARNING  # NOQA
+from transformers import logging
 from typing import List
 from typing import Optional
 
@@ -22,8 +14,8 @@ if is_torch_tpu_available():
     import torch_xla.core.xla_model as xm
     import torch_xla.distributed.parallel_loader as pl
 
-
 logger = logging.get_logger(__name__)
+
 
 class BetterTrainer(Trainer):
     def __init__(self, *args, **kwargs):
@@ -178,11 +170,11 @@ class BetterTrainer(Trainer):
         # samplers has been rounded to a multiple of batch_size, so we truncate.
 
         # This is the only change. We do not want reordered data!
-        #if all_losses is not None:
+        # if all_losses is not None:
         #    all_losses = all_losses[:num_samples]
-        #if all_preds is not None:
+        # if all_preds is not None:
         #    all_preds = nested_truncate(all_preds, num_samples)
-        #if all_labels is not None:
+        # if all_labels is not None:
         #    all_labels = nested_truncate(all_labels, num_samples)
 
         # Metrics!
