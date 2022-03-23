@@ -70,9 +70,7 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
     rows = list()
 
     logging.info(f"Loading tokens and lemmata from {xmlfile}")
-    for event, elem in tqdm(
-            etree.iterparse(xmlfile, events=("end",), tag="sentence")
-    ):
+    for event, elem in tqdm(etree.iterparse(xmlfile, events=("end",), tag="sentence")):
         docid, sntid = elem.attrib["id"].split(".")
         for tok_pos, child in enumerate(elem):
             if child.tag in ("wf", "instance"):
@@ -115,10 +113,15 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
         goldstandard, sep=" ", names=["id", "sense-key1", "sense-key2", "sense-key3"]
     )
 
-    sense_keys = pd.DataFrame(gold_df['sense-key1'][gold_df['sense-key1'].notna()].unique(), columns=["sense-key1"])
+    sense_keys = pd.DataFrame(
+        gold_df["sense-key1"][gold_df["sense-key1"].notna()].unique(),
+        columns=["sense-key1"],
+    )
     sense_keys["sense-key-idx"] = pd.factorize(sense_keys["sense-key1"])[0]
 
-    gold_df["sense-key-idx1"] = pd.merge(gold_df, sense_keys, how='left', on="sense-key1")["sense-key-idx"]
+    gold_df["sense-key-idx1"] = pd.merge(
+        gold_df, sense_keys, how="left", on="sense-key1"
+    )["sense-key-idx"]
 
     gold_df["sense-keys"] = gold_df["sense-key1"]
     gold_df = gold_df.drop(columns=["sense-key1", "sense-key2", "sense-key3"])
@@ -138,7 +141,7 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
             chunk["sentence"],
             padding="max_length",
             truncation="longest_first",
-            max_length=max_length
+            max_length=max_length,
         )
 
         idxs = (
@@ -163,8 +166,9 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
                 if word_idx is None:
                     label_ids.append(-100)
                 elif (
-                        # Only label the first token of a given word.
-                        word_idx != previous_word_idx or pretrained_model_name == BERT_WHOLE_WORD_MASKING
+                    # Only label the first token of a given word.
+                    word_idx != previous_word_idx
+                    or pretrained_model_name == BERT_WHOLE_WORD_MASKING
                 ):
                     r = tokens2senses[tokens2senses.sentence_idx == sentence_idx]
                     token_df = r[r.tokpos == word_idx]
@@ -186,8 +190,8 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
 
     logging.info(f"Preprocessing HuggingFace dataset")
     max_length = data_set.token_level.tokpos.max() + 20
-    hugging_dataset = (
-        Dataset.from_pandas(data_set.sentence_level).map(lambda chunk: map_data(chunk, max_length), batched=True)
+    hugging_dataset = Dataset.from_pandas(data_set.sentence_level).map(
+        lambda chunk: map_data(chunk, max_length), batched=True
     )
 
     stats = io.StringIO()

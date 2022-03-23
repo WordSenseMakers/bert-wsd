@@ -33,7 +33,7 @@ class WordSenseSimilarity(datasets.Metric):
             experiment_id,
             max_concurrent_cache_files,
             timeout,
-            **kwargs
+            **kwargs,
         )
         self.dataset = dataset
 

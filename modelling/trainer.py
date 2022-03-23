@@ -11,7 +11,6 @@ from datagen.dataset import SemCorDataSet
 from . import metrics
 
 
-
 class WordSenseTrainer(Trainer):
     def __init__(
         self,
@@ -67,7 +66,11 @@ class WordSenseTrainer(Trainer):
             pred_synsets = wn.synsets(prediction)
             if not pred_synsets:
                 # Determine score based on word embeddings
-                print(Warning(f"Guessed {prediction} for {sentence}, but needs word embedding lookup"))
+                print(
+                    Warning(
+                        f"Guessed {prediction} for {sentence}, but needs word embedding lookup"
+                    )
+                )
 
             else:
                 # Determine score based on word sense

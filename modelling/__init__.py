@@ -5,7 +5,12 @@ import numpy as np, pandas as pd
 import click
 from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
 
-from transformers import AutoTokenizer, AutoModelForMaskedLM, AutoModel, DataCollatorForWholeWordMask
+from transformers import (
+    AutoTokenizer,
+    AutoModelForMaskedLM,
+    AutoModel,
+    DataCollatorForWholeWordMask,
+)
 from transformers import Trainer, TrainingArguments
 from transformers import DataCollatorForLanguageModeling
 from datasets import Dataset, load_metric
@@ -124,7 +129,7 @@ def main(**params):
     cl_model = cl_model.to(device)
     logging.success(f"Loaded {model_name}")
 
-    hf_ds = hf_ds.add_column("sense-labels", hf_ds['labels'])
+    hf_ds = hf_ds.add_column("sense-labels", hf_ds["labels"])
     relevant_columns = [
         column
         for column in hf_ds.column_names

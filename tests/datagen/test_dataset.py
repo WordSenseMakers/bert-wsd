@@ -1,6 +1,5 @@
 import pandas as pd
 
+
 def test_sentences():
-    df = pd.DataFrame(
-        data={"docid": "sntid" "tokid"}
-    )
+    df = pd.DataFrame(data={"docid": "sntid" "tokid"})

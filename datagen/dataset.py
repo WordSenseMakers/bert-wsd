@@ -44,7 +44,7 @@ class SemCorDataSet:
         "token",
         "lemma",
         "sense-keys",
-        "sense-key-idx1"
+        "sense-key-idx1",
     )
 
     def __init__(self, df: pd.DataFrame):
@@ -75,8 +75,15 @@ class SemCorDataSet:
         #     )
         #     self.masked = maskable[["masked", "token", "sense-keys", "sentence_idx"]]
         # self.mask_token = mask_token
-        self.all_sense_keys = pd.DataFrame(self.token_level['sense-keys'][self.token_level['sense-keys'].notna()].unique(), columns=["sense-key1"])
-        self.all_sense_keys["sense-key-idx"] = pd.factorize(self.all_sense_keys["sense-key1"])[0]
+        self.all_sense_keys = pd.DataFrame(
+            self.token_level["sense-keys"][
+                self.token_level["sense-keys"].notna()
+            ].unique(),
+            columns=["sense-key1"],
+        )
+        self.all_sense_keys["sense-key-idx"] = pd.factorize(
+            self.all_sense_keys["sense-key1"]
+        )[0]
 
     @staticmethod
     def unpickle(inpath: pathlib.Path) -> "SemCorDataSet":
