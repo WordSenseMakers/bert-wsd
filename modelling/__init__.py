@@ -21,7 +21,7 @@ import torch
 
 import colour_logging as logging
 from modelling.model import SynsetClassificationModel
-from . import collators, metrics, trainer as trnr
+from . import metrics
 from datagen.dataset import SemCorDataSet
 
 import nltk

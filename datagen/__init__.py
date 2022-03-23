@@ -43,6 +43,7 @@ BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
     type=click.Choice(["bert-wwm", "roberta", "deberta"], case_sensitive=False),
     callback=lambda ctx, param, value: value.lower(),
     help="supported huggingface models",
+    required=True
 )
 @click.option(
     "-op",
