@@ -6,8 +6,6 @@ from datasets import Dataset
 
 import pandas as pd, numpy as np
 
-
-
 class SynsetClassificationModel(nn.Module):
     def __init__(
         self,
@@ -25,20 +23,21 @@ class SynsetClassificationModel(nn.Module):
                 torch.nn.Linear(1024, num_classes)
         )
 
-        self.loss = torch.nn.BCEWithLogitsLoss()
+        self.loss = torch.nn.CrossEntropyLoss()
 
         self.num_classes = num_classes
 
     def forward(self, **inputs):
-        targets = inputs.pop("targets")
+        labels = inputs["labels"]
 
         # Execute masking model
         hidden_state, _ = self.mlmodel(**inputs)
 
         # todo : support multiple masks in one sentence
-        masked_word_idx = (inputs['labels'] != -100)[0]
+        masked_word_idx = (labels != -100)[0]
         classifier_logits = self.classifier(hidden_state[:, masked_word_idx, :].view(-1, self.hidden_size))
 
+        targets = labels[:, masked_word_idx]
         loss = self.loss(classifier_logits, targets)
 
         return TokenClassifierOutput(loss=loss, logits=classifier_logits)

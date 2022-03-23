@@ -5,7 +5,7 @@ import numpy as np, pandas as pd
 import click
 from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
 
-from transformers import AutoTokenizer, AutoModelForMaskedLM, AutoModel
+from transformers import AutoTokenizer, AutoModelForMaskedLM, AutoModel, DataCollatorForWholeWordMask
 from transformers import Trainer, TrainingArguments
 from transformers import DataCollatorForLanguageModeling
 from datasets import Dataset, load_metric
@@ -20,6 +20,8 @@ from . import collators, metrics, trainer as trnr
 from datagen.dataset import SemCorDataSet
 
 import nltk
+
+BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
 
 
 @click.command(name="modelling", help="train and test models")
@@ -95,18 +97,13 @@ def main(**params):
 
     ds_path = tr_path or ts_path
     logging.info(f"Loading dataset from {ds_path}")
-    ds = SemCorDataSet.unpickle(ds_path)
+    ds = SemCorDataSet.unpickle(ds_path.with_suffix(".pickle"))
+    hf_ds = Dataset.load_from_disk(ds_path.with_suffix(".hf"))
     logging.success(f"Loaded dataset")
 
     hf_model = params["hf_model"]
     if hf_model is not None:
-        if hf_model == "bert":
-            model_name = "bert-large-uncased-whole-word-masking"
-        elif hf_model == "roberta":
-            model_name = "roberta-base"
-        else:
-            assert hf_model == "deberta"
-            model_name = "microsoft/deberta-base"
+        model_name = construct_model_name(hf_model)
         logging.info(
             f"Fetching {params['hf_model']} ({model_name}) from huggingface ..."
         )
@@ -127,67 +124,13 @@ def main(**params):
     cl_model = cl_model.to(device)
     logging.success(f"Loaded {model_name}")
 
-    def map_data(chunk: Dataset) -> dict:
-        # map sense key for each token or falsy value (-100)
-        tokenized = tokenizer(
-            chunk["sentence"],
-            padding="longest",
-            truncation="longest_first",
-        )
-
-        idxs = (
-            chunk["sentence_idx"]
-            if isinstance(chunk["sentence_idx"], list)
-            else [chunk["sentence_idx"]]
-        )
-        tokens2senses = pd.merge(
-            ds.token_level,
-            pd.DataFrame(idxs, columns=["sentence_idx"]),
-            how="inner",
-            on="sentence_idx",
-        )
-
-        labels = []
-        for i, sentence_idx in enumerate(idxs):
-            # Map tokens to their respective word.
-            word_ids = tokenized.word_ids(batch_index=i)
-            previous_word_idx = None
-            label_ids = []
-            for word_idx in word_ids:  # Set the special tokens to -100.
-                if word_idx is None:
-                    label_ids.append(-100)
-                elif (
-                    word_idx != previous_word_idx
-                ):  # Only label the first token of a given word.
-                    r = tokens2senses[tokens2senses.sentence_idx == sentence_idx]
-                    token_df = r[r.tokpos == word_idx]
-
-                    if token_df["sense-keys"].isna().all():
-                        # TODO: Figure out falsy value
-                        label_ids.append(None)
-                    else:
-                        label_ids.append(int(token_df["sense-key-idx1"].iloc[0]))
-                else:
-                    label_ids.append(-100)
-                previous_word_idx = word_idx
-            labels.append(label_ids)
-
-        tokenized["labels"] = labels
-        return tokenized
-
-    logging.info(f"Preprocessing dataset and splitting into training and testing")
-    dataset = (
-        Dataset.from_pandas(ds.sentence_level).map(map_data, batched=True).shuffle()
-    )
-    print(dataset)
-
     relevant_columns = [
         column
-        for column in dataset.column_names
+        for column in hf_ds.column_names
         if column not in ds.sentence_level.columns
     ]
     relevant_columns.append("sentence_idx")
-    dataset.set_format(type="torch", columns=relevant_columns)
+    hf_ds.set_format(type="torch", columns=relevant_columns)
 
     if tr_path is not None:
         # sentence_level = sentence_level.sample(frac=1).reset_index(drop=True).head(n=n)
@@ -200,7 +143,7 @@ def main(**params):
         # train_dataset = streamed_dataset.take(sentence_level.shape[0] // 0.8)
         # eval_dataset = streamed_dataset.take(sentence_level.shape[0] - sentence_level.shape[0] // 0.8)
 
-        ds_splits = dataset.train_test_split(test_size=0.2)
+        ds_splits = hf_ds.train_test_split(test_size=0.2)
         train_dataset = ds_splits["train"]
         eval_dataset = ds_splits["test"]
         logging.success("Successfully tokenized and split dataset")
@@ -215,15 +158,19 @@ def main(**params):
             remove_unused_columns=False,
         )
 
-        trainer = trnr.WordSenseTrainer(
-            model=model,
-            dataset=ds,
+        if model_name == BERT_WHOLE_WORD_MASKING:
+            collator = DataCollatorForWholeWordMask(tokenizer)
+        else:
+            collator = DataCollatorForLanguageModeling(tokenizer)
+
+        trainer = Trainer(
+            model=cl_model,
             tokenizer=tokenizer,
             args=tr_args,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
             # compute_metrics=lambda ep: _compute_metrics(metric, ep),
-            data_collator=DataCollatorForLanguageModeling(tokenizer),
+            data_collator=collator,
         )
         trainer.train()
         trainer.save_model(out)
@@ -246,6 +193,17 @@ def main(**params):
 
     else:
         raise AssertionError("Both training and testing were None!")
+
+
+def construct_model_name(hf_model):
+    if hf_model == "bert-wwm":
+        model_name = BERT_WHOLE_WORD_MASKING
+    elif hf_model == "roberta":
+        model_name = "roberta-base"
+    else:
+        assert hf_model == "deberta"
+        model_name = "microsoft/deberta-base"
+    return model_name
 
 
 def _compute_metrics(tokenizer, eval_pred):
@@ -280,7 +238,7 @@ def _compute_metrics(tokenizer, eval_pred):
     average = "weighted"
 
     return {
-        #'wss': wss,
+        # 'wss': wss,
         "accuracy": accuracy._compute(predictions, reference)["accuracy"],
         "precision": precision._compute(predictions, reference, average=average)[
             "precision"
