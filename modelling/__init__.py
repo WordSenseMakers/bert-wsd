@@ -118,6 +118,7 @@ def main(**params):
         logging.success("Loaded classification model")
 
     else:
+        # todo load model
         model_name = params["local_model"]
         logging.info(f"Loading {params['local_model']} from storage ...")
         tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True)
@@ -130,7 +131,6 @@ def main(**params):
     else:
         collator = DataCollatorForLanguageModeling(tokenizer)
 
-    # ==> base_model_name [ + checkpoint ]
     cl_model = cl_model.to(device)
     logging.success(f"Loaded {model_name}")
 
@@ -144,29 +144,17 @@ def main(**params):
     hf_ds.set_format(type="torch", columns=relevant_columns)
 
     if tr_path is not None:
-        # sentence_level = sentence_level.sample(frac=1).reset_index(drop=True).head(n=n)
-
-        # For streaming
-        # with tempfile.NamedTemporaryFile(dir=ds_path.parent) as trfile:
-        # tmp_file = ds_path.parent / f"{ds_path.name}.tmp"
-        # tr_dataset.save_to_disk(tmp_file)
-        # streamed_dataset = IterableDataset(tr_dataset)
-        # train_dataset = streamed_dataset.take(sentence_level.shape[0] // 0.8)
-        # eval_dataset = streamed_dataset.take(sentence_level.shape[0] - sentence_level.shape[0] // 0.8)
-
         ds_splits = hf_ds.train_test_split(test_size=0.2, shuffle=False)
         train_dataset = ds_splits["train"]
         eval_dataset = ds_splits["test"]
-        logging.success("Successfully tokenized and split dataset")
-        # nltk.download('omw-1.4')
+        logging.success("Successfully split dataset")
 
-        # metric = metrics.WordSenseSimilarity(dataset=ds, config_name="min")
-        # dc = collators.DataCollatorForPreciseLanguageModeling(tokenizer=tokenizer, dataset=ds)
         tr_args = TrainingArguments(
             output_dir=out,
             evaluation_strategy="epoch",
             optim="adamw_torch",
             remove_unused_columns=False,
+            label_names=["labels", "sense-labels"]
         )
 
         trainer = Trainer(
@@ -175,16 +163,14 @@ def main(**params):
             args=tr_args,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            # compute_metrics=lambda ep: _compute_metrics(metric, ep),
-            data_collator=collator,
+            compute_metrics=lambda ep: _compute_metrics(tokenizer, ep, ds),
+            data_collator=collator
         )
         trainer.train()
         trainer.save_model(out)
 
     elif ts_path is not None:
-
-        metric = metrics.WordSenseSimilarity(dataset=ds)
-
+        # todo fix test path --> hold out dataset
         trainer = Trainer(
             model=cl_model,
             eval_dataset=ds,
@@ -212,7 +198,7 @@ def construct_model_name(hf_model):
     return model_name
 
 
-def _compute_metrics(tokenizer, eval_pred):
+def _compute_metrics(tokenizer, eval_pred, dataset):
     logging.info(f"Fetching metrics from huggingface ...")
     accuracy = load_metric("accuracy")
     precision = load_metric("precision")
@@ -220,9 +206,9 @@ def _compute_metrics(tokenizer, eval_pred):
     f1 = load_metric("f1")
     logging.success("Loaded metrics")
 
-    # wss = metric.compute(predictions=predictions, reference=reference)
-
-    logits, labels = eval_pred
+    logits, (masked_labels, sense_labels) = eval_pred
+    labels = sense_labels[:]
+    labels[masked_labels == -100] = -100
 
     # Get IDs
     mask_mask = labels != -100
