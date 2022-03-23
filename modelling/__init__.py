@@ -21,6 +21,7 @@ import torch
 
 import colour_logging as logging
 from modelling.model import SynsetClassificationModel
+from modelling.trainer import BetterTrainer
 from . import metrics
 from datagen.dataset import SemCorDataSet
 
@@ -103,7 +104,7 @@ def main(**params):
     ds_path = tr_path or ts_path
     logging.info(f"Loading dataset from {ds_path}")
     ds = SemCorDataSet.unpickle(ds_path.with_suffix(".pickle"))
-    hf_ds = Dataset.load_from_disk(ds_path.with_suffix(".hf"))
+    hf_ds = Dataset.load_from_disk(ds_path.with_suffix(".hf")).select(range(20))
     logging.success(f"Loaded dataset")
 
     hf_model = params["hf_model"]
@@ -157,7 +158,7 @@ def main(**params):
             label_names=["labels", "sense-labels"]
         )
 
-        trainer = Trainer(
+        trainer = BetterTrainer(
             model=cl_model,
             tokenizer=tokenizer,
             args=tr_args,
