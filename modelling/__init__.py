@@ -125,6 +125,11 @@ def main(**params):
             model_name, local_files_only=True
         )
 
+    if model_name == BERT_WHOLE_WORD_MASKING:
+        collator = DataCollatorForWholeWordMask(tokenizer)
+    else:
+        collator = DataCollatorForLanguageModeling(tokenizer)
+
     # ==> base_model_name [ + checkpoint ]
     cl_model = cl_model.to(device)
     logging.success(f"Loaded {model_name}")
@@ -164,11 +169,6 @@ def main(**params):
             remove_unused_columns=False,
         )
 
-        if model_name == BERT_WHOLE_WORD_MASKING:
-            collator = DataCollatorForWholeWordMask(tokenizer)
-        else:
-            collator = DataCollatorForLanguageModeling(tokenizer)
-
         trainer = Trainer(
             model=cl_model,
             tokenizer=tokenizer,
@@ -189,7 +189,7 @@ def main(**params):
             model=cl_model,
             eval_dataset=ds,
             compute_metrics=lambda ep: _compute_metrics(tokenizer, ep),
-            data_collator=DataCollatorForLanguageModeling(tokenizer),
+            data_collator=collator,
         )
 
         eval_metrics = trainer.evaluate()
