@@ -125,7 +125,6 @@ def main(**params):
     ds = SemCorDataSet.unpickle(ds_path.with_suffix(".pickle"))
     hf_ds = (
         Dataset.load_from_disk(ds_path.with_suffix(".hf"))
-        .select(range(100))
     )
     logging.success(f"Loaded dataset")
 
