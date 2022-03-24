@@ -110,6 +110,7 @@ BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
 )
 def main(**params):
     nltk.download("wordnet")
+    nltk.download("omz-1.4")
     if torch.cuda.is_available():
         device = "cuda:0"
         logging.info(f"CUDA found; running on {device}")
