@@ -222,10 +222,7 @@ def _compute_metrics(tokenizer, eval_pred, dataset):
         syn1 = set(wn.synsets(tokenizer.decode(prediction).strip()))
         syn2 = set(wn.synsets(tokenizer.decode(reference).strip()))
 
-        if len(syn1.intersection(syn2)) > 0:
-            return reference
-
-        return prediction
+        return reference if syn1.intersection(syn2) else prediction
 
     predictions = list(map(overlap, predictions, reference))
 
