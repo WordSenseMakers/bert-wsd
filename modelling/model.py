@@ -5,11 +5,15 @@ from transformers.modeling_outputs import TokenClassifierOutput
 
 
 class SynsetClassificationModel(PreTrainedModel):
-    def __init__(self, config, model_name: str, num_classes: int):
+    def __init__(self, config, model_name: str, num_classes: int, freeze_lm: bool = False):
         super(SynsetClassificationModel, self).__init__(
             config
         )
         self.mlmodel = AutoModel.from_pretrained(model_name)
+
+        if freeze_lm:
+            for parameter in self.mlmodel.parameters():
+                parameter.requires_grad = False
 
         self.hidden_size = self.mlmodel.config.hidden_size
         self.classifier = torch.nn.Sequential(

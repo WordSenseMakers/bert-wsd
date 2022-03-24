@@ -94,6 +94,12 @@ BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
     required=True,
     help="Where to store result",
 )
+@click.option(
+    "-fm",
+    "--freeze-model",
+    help="Freeze LM model parameters while training",
+    is_flag=True
+)
 def main(**params):
     if torch.cuda.is_available():
         device = "cuda:0"
@@ -114,6 +120,7 @@ def main(**params):
     logging.success(f"Loaded dataset")
 
     hf_model = params["hf_model"]
+
     if hf_model is not None:
         model_name = construct_model_name(hf_model)
         logging.info(
@@ -122,7 +129,8 @@ def main(**params):
         logging.info("Loading classification model ...")
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         config = AutoConfig.from_pretrained(model_name)
-        cl_model = SynsetClassificationModel(config, model_name, ds.all_sense_keys.shape[0])
+        cl_model = SynsetClassificationModel(config, model_name, ds.all_sense_keys.shape[0],
+                                             freeze_lm=params["freeze_model"])
         logging.success("Loaded classification model")
 
     else:
@@ -131,7 +139,8 @@ def main(**params):
         logging.info(f"Loading {params['local_model']} from storage ...")
         config = AutoConfig.from_pretrained(model_name, local_files_only=True)
         cl_model = SynsetClassificationModel.from_pretrained(
-            model_name, config=config, local_files_only=True, model_name=base_model_name, num_classes=ds.all_sense_keys.shape[0]
+            model_name, config=config, local_files_only=True, model_name=base_model_name,
+            num_classes=ds.all_sense_keys.shape[0], freeze_lm=params["freeze_model"]
         )
         tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True)
 
