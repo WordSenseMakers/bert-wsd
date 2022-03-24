@@ -155,7 +155,7 @@ def main(**params):
             evaluation_strategy="epoch",
             optim="adamw_torch",
             remove_unused_columns=False,
-            label_names=["labels", "sense-labels"]
+            label_names=["labels", "sense-labels"],
         )
 
         trainer = BetterTrainer(
@@ -165,7 +165,7 @@ def main(**params):
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
             compute_metrics=lambda ep: _compute_metrics(tokenizer, ep, ds),
-            data_collator=collator
+            data_collator=collator,
         )
         trainer.train()
         trainer.save_model(out)
@@ -200,7 +200,7 @@ def construct_model_name(hf_model):
 
 
 def _compute_metrics(tokenizer, eval_pred, dataset):
-    logging.info(f"Fetching metrics from huggingface ...")
+    logging.info(f"Loading huggingface metrics")
     accuracy = load_metric("accuracy")
     precision = load_metric("precision")
     recall = load_metric("recall")
@@ -230,15 +230,12 @@ def _compute_metrics(tokenizer, eval_pred, dataset):
 
     average = "weighted"
 
-    return {
-        # 'wss': wss,
-        "accuracy": accuracy._compute(predictions, reference)["accuracy"],
-        "precision": precision._compute(predictions, reference, average=average)[
-            "precision"
-        ],
-        "recall": recall._compute(predictions, reference, average=average)["recall"],
-        "f1_score": f1._compute(predictions, reference, average=average)["f1"],
-    }
+    acc = accuracy._compute(predictions, reference)
+    prec = precision._compute(predictions, reference, average=average)
+    recall = recall._compute(predictions, reference, average=average)
+    f1score = f1._compute(predictions, reference, average=average)
+
+    return {**acc, **prec, **recall, **f1score}
 
 
 if __name__ == "__main__":
