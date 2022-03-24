@@ -173,7 +173,7 @@ def main(**params):
 
     elif ts_path is not None:
         # todo fix test path --> hold out dataset
-        trainer = Trainer(
+        trainer = BetterTrainer(
             model=cl_model,
             eval_dataset=ds,
             compute_metrics=lambda ep: _compute_metrics(tokenizer, ep),
