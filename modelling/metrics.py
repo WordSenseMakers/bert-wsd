@@ -2,6 +2,7 @@ import abc, statistics
 from typing import Any, Dict, Optional, Union
 
 import datasets
+import pandas as pd
 from nltk.corpus import wordnet as wn
 import numpy as np
 
@@ -47,8 +48,8 @@ class WordSenseSimilarity(datasets.Metric):
             # This defines the format of each prediction and reference
             features=datasets.Features(
                 {
-                    "predictions": datasets.Value("string"),
-                    "references": datasets.Value("string"),
+                    "predictions": datasets.Value("int64"),
+                    "references": datasets.Value("int64"),
                 }
             ),
             # Homepage of the metric for documentation
@@ -56,17 +57,30 @@ class WordSenseSimilarity(datasets.Metric):
             # Additional links to the codebase or references
             codebase_urls=["https://github.com/WordSenseMakers/bert-wsd"],
             reference_urls=None,
+            format="numpy"
         )
 
     def _compute(
         self, *, predictions=None, references=None, **kwargs
     ) -> Dict[str, Any]:
+        preddf = pd.merge(
+            self.dataset.all_sense_keys,
+            pd.DataFrame(predictions, columns=["prediction"]),
+            left_on="sense-key-idx",
+            right_on="prediction",
+        ).rename(columns={"sense-key1": "sense-key-pred"})
+        refdf = pd.merge(
+            self.dataset.all_sense_keys,
+            pd.DataFrame(references, columns=["reference"]),
+            left_on="sense-key-idx",
+            right_on="reference",
+        ).rename(columns={"sense-key1": "sense-key-ref"})
 
         synset_from_sense_key = np.vectorize(lambda x: wn.lemma_from_key(x).synset())
         path_sim = np.vectorize(wn.path_similarity)
 
-        pred_synset = synset_from_sense_key(predictions)
-        ref_synsets = synset_from_sense_key(references)
+        pred_synset = synset_from_sense_key(preddf["sense-key-pred"].to_numpy())
+        ref_synsets = synset_from_sense_key(refdf["sense-key-ref"].to_numpy())
         similarities = path_sim(pred_synset, ref_synsets)
 
-        return {"word_sense_distance": similarities.sum()}
+        return {"word_sense_similarity": similarities.mean()}

@@ -1,15 +1,14 @@
-from torch import nn
 import torch
-from transformers import PreTrainedModel, PreTrainedTokenizer, pipeline, AutoModel
+from torch import nn
+from transformers import AutoModel, PreTrainedModel
 from transformers.modeling_outputs import TokenClassifierOutput
-from datasets import Dataset
-
-import pandas as pd, numpy as np
 
 
-class SynsetClassificationModel(nn.Module):
-    def __init__(self, model_name: str, num_classes: int):
-        super(SynsetClassificationModel, self).__init__()
+class SynsetClassificationModel(PreTrainedModel):
+    def __init__(self, config, model_name: str, num_classes: int):
+        super(SynsetClassificationModel, self).__init__(
+            config
+        )
         self.mlmodel = AutoModel.from_pretrained(model_name)
 
         self.hidden_size = self.mlmodel.config.hidden_size

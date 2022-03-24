@@ -12,7 +12,7 @@ from transformers import (
     AutoModelForMaskedLM,
     AutoModel,
     DataCollatorForWholeWordMask,
-    PreTrainedTokenizer,
+    PreTrainedTokenizer, AutoConfig,
 )
 from transformers import Trainer, TrainingArguments
 from transformers import DataCollatorForLanguageModeling
@@ -43,7 +43,7 @@ BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
     "-hm",
     "--hf-model",
     type=click.Choice(["bert-wwm", "roberta", "deberta"], case_sensitive=False),
-    callback=lambda ctx, param, value: value.lower(),
+    callback=lambda ctx, param, value: value.lower() if value is not None else None,
     help="supported huggingface models",
 )
 @optgroup.option(
@@ -109,7 +109,7 @@ def main(**params):
     ds = SemCorDataSet.unpickle(ds_path.with_suffix(".pickle"))
     hf_ds = (
         Dataset.load_from_disk(ds_path.with_suffix(".hf"))
-        # .select(range(10))
+            .select(range(10))
     )
     logging.success(f"Loaded dataset")
 
@@ -121,17 +121,19 @@ def main(**params):
         )
         logging.info("Loading classification model ...")
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        cl_model = SynsetClassificationModel(model_name, ds.all_sense_keys.shape[0])
+        config = AutoConfig.from_pretrained(model_name)
+        cl_model = SynsetClassificationModel(config, model_name, ds.all_sense_keys.shape[0])
         logging.success("Loaded classification model")
 
     else:
-        # todo load model
         model_name = params["local_model"]
+        base_model_name = construct_model_name(str(model_name))
         logging.info(f"Loading {params['local_model']} from storage ...")
-        tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True)
-        cl_model = AutoModelForMaskedLM.from_pretrained(
-            model_name, local_files_only=True
+        config = AutoConfig.from_pretrained(model_name, local_files_only=True)
+        cl_model = SynsetClassificationModel.from_pretrained(
+            model_name, config=config, local_files_only=True, model_name=base_model_name, num_classes=ds.all_sense_keys.shape[0]
         )
+        tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True)
 
     if model_name == BERT_WHOLE_WORD_MASKING:
         collator = DataCollatorForWholeWordMask(tokenizer)
@@ -149,6 +151,8 @@ def main(**params):
     ]
     relevant_columns.append("sense-labels")
     hf_ds.set_format(type="torch", columns=relevant_columns)
+
+    metrics = load_metrics(ds)
 
     if tr_path is not None:
         ds_splits = hf_ds.train_test_split(
@@ -175,19 +179,26 @@ def main(**params):
             args=tr_args,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            compute_metrics=lambda ep: _compute_metrics(tokenizer, ep, ds),
+            compute_metrics=lambda ep: _compute_metrics(metrics, ep),
             data_collator=collator,
         )
         trainer.train()
         trainer.save_model(out)
 
     elif ts_path is not None:
-        # todo fix test path --> hold out dataset
+
+        te_args = TrainingArguments(
+            output_dir=out,
+            remove_unused_columns=False,
+            label_names=["labels", "sense-labels"]
+        )
+
         trainer = BetterTrainer(
             model=cl_model,
-            eval_dataset=ds,
-            compute_metrics=lambda ep: _compute_metrics(tokenizer, ep),
+            eval_dataset=hf_ds,
+            compute_metrics=lambda ep: _compute_metrics(metrics, ep),
             data_collator=collator,
+            args=te_args
         )
 
         eval_metrics = trainer.evaluate()
@@ -200,26 +211,39 @@ def main(**params):
 
 
 def construct_model_name(hf_model: str):
-    if hf_model == "bert-wwm":
+    if "bert-wwm" in hf_model:
         model_name = BERT_WHOLE_WORD_MASKING
-    elif hf_model == "roberta":
+    elif "roberta" in hf_model:
         model_name = "roberta-base"
     else:
-        assert hf_model == "deberta"
+        assert "deberta" in hf_model
         model_name = "microsoft/deberta-base"
     return model_name
 
 
-def _compute_metrics(tokenizer: PreTrainedTokenizer, eval_pred, dataset: SemCorDataSet):
+def load_metrics(dataset: SemCorDataSet) -> list:
     logging.info(f"Loading huggingface metrics")
+    average = "weighted"
+
     accuracy = load_metric("accuracy")
     precision = load_metric("precision")
     recall = load_metric("recall")
-    wss_metric = WordSenseSimilarity(dataset)
+    dataset = WordSenseSimilarity(dataset)
     f1 = load_metric("f1")
 
+    computations = [
+        lambda p, r: accuracy.compute(predictions=p, references=r),
+        lambda p, r: precision.compute(predictions=p, references=r, average=average),
+        lambda p, r: recall.compute(predictions=p, references=r, average=average),
+        lambda p, r: dataset.compute(predictions=p, references=r),
+        lambda p, r: f1.compute(predictions=p, references=r, average=average),
+    ]
     logging.success("Loaded metrics")
 
+    return computations
+
+
+def _compute_metrics(metrics: list, eval_pred):
     logits, (masked_labels, sense_labels) = eval_pred
     labels = sense_labels[:]
     labels[masked_labels == -100] = -100
@@ -229,45 +253,11 @@ def _compute_metrics(tokenizer: PreTrainedTokenizer, eval_pred, dataset: SemCorD
     predictions = np.argmax(logits, axis=-1)[lossable.flatten()]
     reference = labels[lossable]
 
-    # Set prediction = reference if there exists a synsets overlap
-    def overlap(sense_key_pred: str, pred_id: int, sense_key_ref: str, ref_id: int):
-        pred_synset = wn.lemma_from_key(sense_key_pred).synset()
-        ref_synset = wn.lemma_from_key(sense_key_ref).synset()
-        return ref_id if pred_synset.path_similarity(ref_synset) > 0.8 else pred_id
+    result = dict()
+    for metric in metrics:
+        result.update(metric(predictions, reference))
 
-        # syn2 = set(wn.synsets(tokenizer.decode(reference).strip()))
-        # return reference if syn1.intersection(syn2) else prediction
-
-    preddf = pd.merge(
-        dataset.all_sense_keys,
-        pd.DataFrame(predictions, columns=["prediction"]),
-        left_on="sense-key-idx",
-        right_on="prediction",
-    ).rename(columns={"sense-key1": "sense-key-pred"})
-    refdf = pd.merge(
-        dataset.all_sense_keys,
-        pd.DataFrame(reference, columns=["reference"]),
-        left_on="sense-key-idx",
-        right_on="reference",
-    ).rename(columns={"sense-key1": "sense-key-ref"})
-    df = pd.concat((preddf, refdf), axis=1).drop(columns=["sense-key-idx"])
-
-    df["overlap"] = df.apply(lambda x: overlap(*x), axis=1)
-
-    # predictions = list(map(overlap, predictions, reference))
-
-    average = "weighted"
-
-    acc = accuracy._compute(df["overlap"].to_numpy(), reference)
-    prec = precision._compute(df["overlap"].to_numpy(), reference, average=average)
-    recall = recall._compute(df["overlap"].to_numpy(), reference, average=average)
-    f1score = f1._compute(df["overlap"].to_numpy(), reference, average=average)
-    wss = wss_metric._compute(
-        predictions=df["sense-key-pred"].to_numpy(),
-        references=df["sense-key-ref"].to_numpy(),
-    )
-
-    return {**acc, **prec, **recall, **f1score, **wss}
+    return result
 
 
 if __name__ == "__main__":
