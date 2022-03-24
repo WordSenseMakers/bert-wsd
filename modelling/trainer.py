@@ -169,7 +169,7 @@ class BetterTrainer(Trainer):
         # Number of losses has been rounded to a multiple of batch_size and in a distributed training, the number of
         # samplers has been rounded to a multiple of batch_size, so we truncate.
 
-        print(f"{BetterTrainer.__name__}: Refusing to reshape data!")
+        # print(f"{BetterTrainer.__name__}: Refusing to reshape data!")
         # This is the only change. We do not want reordered data!
         # if all_losses is not None:
         #    all_losses = all_losses[:num_samples]

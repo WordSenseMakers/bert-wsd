@@ -5,11 +5,14 @@ import numpy as np, pandas as pd
 import click
 from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
 
+from modelling.metrics import WordSenseSimilarity
+
 from transformers import (
     AutoTokenizer,
     AutoModelForMaskedLM,
     AutoModel,
     DataCollatorForWholeWordMask,
+    PreTrainedTokenizer,
 )
 from transformers import Trainer, TrainingArguments
 from transformers import DataCollatorForLanguageModeling
@@ -104,8 +107,10 @@ def main(**params):
     ds_path = tr_path or ts_path
     logging.info(f"Loading dataset from {ds_path}")
     ds = SemCorDataSet.unpickle(ds_path.with_suffix(".pickle"))
-    hf_ds = Dataset.load_from_disk(ds_path.with_suffix(".hf")) \
-        .select(range(10))
+    hf_ds = (
+        Dataset.load_from_disk(ds_path.with_suffix(".hf"))
+        # .select(range(10))
+    )
     logging.success(f"Loaded dataset")
 
     hf_model = params["hf_model"]
@@ -146,7 +151,10 @@ def main(**params):
     hf_ds.set_format(type="torch", columns=relevant_columns)
 
     if tr_path is not None:
-        ds_splits = hf_ds.train_test_split(test_size=0.2)
+        ds_splits = hf_ds.train_test_split(
+            test_size=0.2,
+            #    shuffle=False,
+        )
         train_dataset = ds_splits["train"]
         eval_dataset = ds_splits["test"]
         logging.success("Successfully split dataset")
@@ -202,12 +210,14 @@ def construct_model_name(hf_model: str):
     return model_name
 
 
-def _compute_metrics(tokenizer, eval_pred, dataset):
+def _compute_metrics(tokenizer: PreTrainedTokenizer, eval_pred, dataset: SemCorDataSet):
     logging.info(f"Loading huggingface metrics")
     accuracy = load_metric("accuracy")
     precision = load_metric("precision")
     recall = load_metric("recall")
+    wss_metric = WordSenseSimilarity(dataset)
     f1 = load_metric("f1")
+
     logging.success("Loaded metrics")
 
     logits, (masked_labels, sense_labels) = eval_pred
@@ -215,27 +225,49 @@ def _compute_metrics(tokenizer, eval_pred, dataset):
     labels[masked_labels == -100] = -100
 
     # Get IDs
-    mask_mask = labels != -100
-    predictions = np.argmax(logits, axis=-1)[mask_mask].flatten()
-    reference = labels[mask_mask].flatten()
+    lossable = labels != -100
+    predictions = np.argmax(logits, axis=-1)[lossable.flatten()]
+    reference = labels[lossable]
 
     # Set prediction = reference if there exists a synsets overlap
-    def overlap(prediction: int, reference: int):
-        syn1 = set(wn.synsets(tokenizer.decode(prediction).strip()))
-        syn2 = set(wn.synsets(tokenizer.decode(reference).strip()))
+    def overlap(sense_key_pred: str, pred_id: int, sense_key_ref: str, ref_id: int):
+        pred_synset = wn.lemma_from_key(sense_key_pred).synset()
+        ref_synset = wn.lemma_from_key(sense_key_ref).synset()
+        return ref_id if pred_synset.path_similarity(ref_synset) > 0.8 else pred_id
 
-        return reference if syn1.intersection(syn2) else prediction
+        # syn2 = set(wn.synsets(tokenizer.decode(reference).strip()))
+        # return reference if syn1.intersection(syn2) else prediction
 
-    predictions = list(map(overlap, predictions, reference))
+    preddf = pd.merge(
+        dataset.all_sense_keys,
+        pd.DataFrame(predictions, columns=["prediction"]),
+        left_on="sense-key-idx",
+        right_on="prediction",
+    ).rename(columns={"sense-key1": "sense-key-pred"})
+    refdf = pd.merge(
+        dataset.all_sense_keys,
+        pd.DataFrame(reference, columns=["reference"]),
+        left_on="sense-key-idx",
+        right_on="reference",
+    ).rename(columns={"sense-key1": "sense-key-ref"})
+    df = pd.concat((preddf, refdf), axis=1).drop(columns=["sense-key-idx"])
+
+    df["overlap"] = df.apply(lambda x: overlap(*x), axis=1)
+
+    # predictions = list(map(overlap, predictions, reference))
 
     average = "weighted"
 
-    acc = accuracy._compute(predictions, reference)
-    prec = precision._compute(predictions, reference, average=average)
-    recall = recall._compute(predictions, reference, average=average)
-    f1score = f1._compute(predictions, reference, average=average)
+    acc = accuracy._compute(df["overlap"].to_numpy(), reference)
+    prec = precision._compute(df["overlap"].to_numpy(), reference, average=average)
+    recall = recall._compute(df["overlap"].to_numpy(), reference, average=average)
+    f1score = f1._compute(df["overlap"].to_numpy(), reference, average=average)
+    wss = wss_metric._compute(
+        predictions=df["sense-key-pred"].to_numpy(),
+        references=df["sense-key-ref"].to_numpy(),
+    )
 
-    return {**acc, **prec, **recall, **f1score}
+    return {**acc, **prec, **recall, **f1score, **wss}
 
 
 if __name__ == "__main__":
