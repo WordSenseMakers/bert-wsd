@@ -156,6 +156,7 @@ def main(**params):
             optim="adamw_torch",
             remove_unused_columns=False,
             label_names=["labels", "sense-labels"],
+            load_best_model_at_end=True,
         )
 
         trainer = BetterTrainer(
@@ -188,7 +189,7 @@ def main(**params):
         raise AssertionError("Both training and testing were None!")
 
 
-def construct_model_name(hf_model):
+def construct_model_name(hf_model: str):
     if hf_model == "bert-wwm":
         model_name = BERT_WHOLE_WORD_MASKING
     elif hf_model == "roberta":
