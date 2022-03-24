@@ -5,6 +5,7 @@ import numpy as np, pandas as pd
 import click
 from click_option_group import optgroup, RequiredMutuallyExclusiveOptionGroup
 
+from modelling.collator import BetterDataCollatorForWholeWordMask
 from modelling.metrics import WordSenseSimilarity
 
 from transformers import (
@@ -152,7 +153,7 @@ def main(**params):
         tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True)
 
     if model_name == BERT_WHOLE_WORD_MASKING:
-        collator = DataCollatorForWholeWordMask(tokenizer)
+        collator = BetterDataCollatorForWholeWordMask(tokenizer)
     else:
         collator = DataCollatorForLanguageModeling(tokenizer)
 
