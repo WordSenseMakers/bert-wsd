@@ -2,7 +2,9 @@ import abc, statistics
 from typing import Any, Dict, Optional, Union
 
 import datasets
+import pandas as pd
 from nltk.corpus import wordnet as wn
+import numpy as np
 
 from datagen.dataset import SemCorDataSet
 
@@ -11,8 +13,7 @@ class WordSenseSimilarity(datasets.Metric):
     def __init__(
         self,
         dataset: SemCorDataSet,
-        # max, avg or min
-        config_name: str,
+        config_name: Optional[str] = None,
         keep_in_memory: bool = False,
         cache_dir: Optional[str] = None,
         num_process: int = 1,
@@ -33,22 +34,22 @@ class WordSenseSimilarity(datasets.Metric):
             experiment_id,
             max_concurrent_cache_files,
             timeout,
-            **kwargs
+            **kwargs,
         )
         self.dataset = dataset
 
     def _info(self):
         return datasets.MetricInfo(
             # This is the description that will appear on the metrics page.
-            description="Compute different sense similarities for references (gold-standard) and predicted words. Will fallback to cosine similarity over word embeddings",
+            description="Compute different sense similarities for references (gold-standard) and predicted words",
             citation=None,
             inputs_description="predictions as word, gold-standard by lemma-key, "
             + "stored in an iterable ordered structure",
             # This defines the format of each prediction and reference
             features=datasets.Features(
                 {
-                    "predictions": datasets.Value("string"),
-                    "references": datasets.Value("string"),
+                    "predictions": datasets.Value("int64"),
+                    "references": datasets.Value("int64"),
                 }
             ),
             # Homepage of the metric for documentation
@@ -56,29 +57,30 @@ class WordSenseSimilarity(datasets.Metric):
             # Additional links to the codebase or references
             codebase_urls=["https://github.com/WordSenseMakers/bert-wsd"],
             reference_urls=None,
+            format="numpy"
         )
 
     def _compute(
         self, *, predictions=None, references=None, **kwargs
     ) -> Dict[str, Any]:
-        print(predictions)
-        print(references)
-        # Compute possible synsets for a given prediction
-        pred_synsets = [wn.synsets(prediction) for prediction in predictions]
-        ref_synsets = [
-            wn.lemma_from_key(sense_key).synset() for sense_key in references
-        ]
+        preddf = pd.merge(
+            self.dataset.all_sense_keys,
+            pd.DataFrame(predictions, columns=["prediction"]),
+            left_on="sense-key-idx",
+            right_on="prediction",
+        ).rename(columns={"sense-key1": "sense-key-pred"})
+        refdf = pd.merge(
+            self.dataset.all_sense_keys,
+            pd.DataFrame(references, columns=["reference"]),
+            left_on="sense-key-idx",
+            right_on="reference",
+        ).rename(columns={"sense-key1": "sense-key-ref"})
 
-        if self.config_name == "max":
-            selector = max
-        elif self.config_name == "min":
-            selector = min
-        elif self.config_name == "avg":
-            selector = statistics.fmean
+        synset_from_sense_key = np.vectorize(lambda x: wn.lemma_from_key(x).synset())
+        path_sim = np.vectorize(wn.path_similarity)
 
-        similarities = [
-            selector(wn.path_similarity(pred, ref_synset) for pred in pred_synset_set)
-            for pred_synset_set, ref_synset in zip(pred_synsets, ref_synsets)
-        ]
+        pred_synset = synset_from_sense_key(preddf["sense-key-pred"].to_numpy())
+        ref_synsets = synset_from_sense_key(refdf["sense-key-ref"].to_numpy())
+        similarities = path_sim(pred_synset, ref_synsets)
 
-        return {"word_sense_distance": sum(similarities)}
+        return {"word_sense_similarity": similarities.mean()}

@@ -1,27 +1,35 @@
 import pathlib
+import re, string
 
 import pandas as pd
+from nltk.corpus import wordnet as wn
 
 
-def _mask(sentence: str, token: str, tokid: str, mask_token: str) -> str:
+def _mask(sentence: str, token: str, tok_pos: int, mask_token: str) -> str:
     assert token in sentence, f"{token} not found in {sentence}"
-    many = sentence.count(token)
+    # many = sentence.count(token)
 
-    approx_offset = int(tokid[1:])
+    pattern = (
+        rf"\b{re.escape(token)}"
+        if not any(c in string.punctuation for c in token)
+        else f"{re.escape(token)}"
+    )
+
+    approx_offset = tok_pos
     start = 0
-    occurrences = []
 
-    original = sentence[:]
-    while True:
-        search = sentence.find(token)
-        if search == -1:
-            break
-        occurrences.append(search)
-        sentence = sentence[search + len(token) :]
+    # Store offset of words in sentence
+    offsets = [g.start(0) for g in re.finditer(pattern, sentence)]
 
-    sentence = original
-    closest = min(occurrences, key=lambda occ: abs(occ - approx_offset))
-    return f"{sentence[:closest]}{mask_token}{sentence[closest + len(token):]}"
+    # Convert sentence offset to word index
+    word_indices = [sentence[:offset].count(" ") for offset in offsets]
+
+    closest, _ = min(
+        zip(offsets, word_indices), key=lambda ow: abs(ow[1] - approx_offset)
+    )
+    masked = f"{sentence[:closest]}{mask_token}{sentence[closest + len(token):]}"
+
+    return masked
 
 
 class SemCorDataSet:
@@ -32,38 +40,55 @@ class SemCorDataSet:
         "docid",
         "sntid",
         "tokid",
+        "tokpos",
         "token",
         "lemma",
         "sense-keys",
+        "sense-key-idx1",
     )
 
-    def __init__(self, df: pd.DataFrame, mask_token=None):
+    def __init__(self, df: pd.DataFrame):
         self.token_level = df
         self._check()
         self.token_level["sentence_idx"] = pd.factorize(
             self.token_level["docid"] + self.token_level["sntid"]
         )[0]
-        if mask_token is not None:
-            self.sentence_level = (
-                self.token_level.groupby(["sentence_idx"])
-                .agg({"token": " ".join})
-                .rename(columns={"token": "sentence"})
-                .reset_index()
-            )
-            maskable = pd.merge(
-                self.token_level, self.sentence_level, on="sentence_idx", how="inner"
-            )
-            maskable = maskable[maskable["sense-keys"].notna()]
-            maskable["masked"] = maskable[["sentence", "token", "tokid"]].apply(
-                lambda cols: _mask(*cols, mask_token), axis=1
-            )
-            self.masked = maskable[["masked", "token", "sense-keys", "sentence_idx"]]
-        self.mask_token = mask_token
+        self.sentence_level = (
+            self.token_level.groupby(["sentence_idx"])
+            .agg({"token": " ".join})
+            .rename(columns={"token": "sentence"})
+            .reset_index()
+        )
+        # if mask_token is not None:
+        #     self.sentence_level = (
+        #         self.token_level.groupby(["sentence_idx"])
+        #         .agg({"token": " ".join})
+        #         .rename(columns={"token": "sentence"})
+        #         .reset_index()
+        #     )
+        #     maskable = pd.merge(
+        #         self.token_level, self.sentence_level, on="sentence_idx", how="inner"
+        #     )
+        #     maskable = maskable[maskable["sense-keys"].notna()]
+        #     maskable["masked"] = maskable[["sentence", "token", "tokpos"]].apply(
+        #         lambda cols: _mask(*cols, mask_token), axis=1
+        #     )
+        #     self.masked = maskable[["masked", "token", "sense-keys", "sentence_idx"]]
+        # self.mask_token = mask_token
+        self.all_sense_keys = pd.DataFrame(
+            self.token_level["sense-keys"][
+                self.token_level["sense-keys"].notna()
+            ].unique(),
+            columns=["sense-key1"],
+        )
+        self.all_sense_keys["sense-key-idx"] = pd.factorize(
+            self.all_sense_keys["sense-key1"]
+        )[0]
 
     @staticmethod
-    def unpickle(inpath: pathlib.Path, mask_token=None) -> "SemCorDataSet":
+    def unpickle(inpath: pathlib.Path) -> "SemCorDataSet":
         df = pd.read_pickle(inpath)
-        return SemCorDataSet(df, mask_token)
+        return SemCorDataSet(df)
 
     def pickle(self, out: pathlib.Path):
         out.parent.mkdir(parents=True, exist_ok=True)
