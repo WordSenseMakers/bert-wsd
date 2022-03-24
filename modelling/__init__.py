@@ -109,6 +109,7 @@ BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
     default=10
 )
 def main(**params):
+    nltk.download("wordnet")
     if torch.cuda.is_available():
         device = "cuda:0"
         logging.info(f"CUDA found; running on {device}")
@@ -123,6 +124,7 @@ def main(**params):
     ds = SemCorDataSet.unpickle(ds_path.with_suffix(".pickle"))
     hf_ds = (
         Dataset.load_from_disk(ds_path.with_suffix(".hf"))
+        .select(range(100))
     )
     logging.success(f"Loaded dataset")
 
@@ -188,6 +190,8 @@ def main(**params):
             label_names=["labels", "sense-labels"],
             load_best_model_at_end=True,
             num_train_epochs=params["epoch"],
+            fp16=True,
+            eval_accumulation_steps=50,
         )
 
         trainer = BetterTrainer(
