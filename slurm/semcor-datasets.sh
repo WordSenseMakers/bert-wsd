@@ -21,7 +21,7 @@ done
 for model in roberta deberta bert-wwm 
 do
 	~/.local/bin/poetry run python main.py datagen \
-		-ds ./train/WSD_Training_Corpora/SemCor/semcor+omsti.data.xml \
+		-ds ./train/WSD_Training_Corpora/SemCor+OMSTI/semcor+omsti.data.xml \
 		-gs ./train/WSD_Training_Corpora/SemCor+OMSTI/semcor+omsti.gold.key.txt \
 		-hm ${model} \
 		-op ./dataset/${model}+semcor+omsti.pickle
