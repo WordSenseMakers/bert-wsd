@@ -27,7 +27,7 @@ import torch
 import colour_logging as logging
 from modelling.model import SynsetClassificationModel
 from modelling.trainer import BetterTrainer
-from . import metrics
+from modelling import metrics
 from datagen.dataset import SemCorDataSet
 
 import nltk
@@ -35,7 +35,7 @@ import nltk
 BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
 
 
-@click.command(name="modelling", help="train and test models")
+@click.command(name="raw", help="motivate need for training classification model")
 @optgroup.option(
     "-hm",
     "--hf-model",
@@ -96,7 +96,7 @@ def main(**params):
     logging.info("Loading classification model ...")
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     config = AutoConfig.from_pretrained(model_name)
-    model = AutoModelForMaskedLM.from_pretrained(model_name, local_files_only=False)
+    model = AutoModelForMaskedLM.from_pretrained(model_name)
     logging.success("Loaded classification model")
 
     if model_name == BERT_WHOLE_WORD_MASKING:
