@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:0
 #SBATCH --partition=students
-#SBATCH --mem=32GB
+#SBATCH --mem=64GB
 
 for model in roberta deberta bert-wwm 
 do
