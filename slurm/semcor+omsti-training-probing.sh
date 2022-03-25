@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=bert-wsd
+#SBATCH --job-name=semcor+omsti-training-probing
 #SBATCH --output=wsd_output.txt
 #SBATCH --ntasks=1
 #SBATCH --mem=32GB

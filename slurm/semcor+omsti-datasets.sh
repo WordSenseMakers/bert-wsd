@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH --job-name=bert-wsd
+#SBATCH --job-name=semcor+omsti-datagen
 #SBATCH --output=wsd_output.txt
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:0
