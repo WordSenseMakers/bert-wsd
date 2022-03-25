@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH --job-name=semcor-datagen
-#SBATCH --output=wsd_output.txt
+#SBATCH --output=datagen.txt
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:0
 #SBATCH --partition=students
