@@ -43,7 +43,7 @@ BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
     type=click.Choice(["bert-wwm", "roberta", "deberta"], case_sensitive=False),
     callback=lambda ctx, param, value: value.lower(),
     help="supported huggingface models",
-    required=True
+    required=True,
 )
 @click.option(
     "-op",
@@ -113,29 +113,30 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
     gold_df = pd.read_csv(
         goldstandard, sep=" ", names=["id", "sense-key1", "sense-key2", "sense-key3"]
     )
-
-    sense_keys = pd.DataFrame(
-        gold_df["sense-key1"][gold_df["sense-key1"].notna()].unique(),
-        columns=["sense-key1"],
-    )
-
-    gold_df["sense-key-idx1"] = pd.merge(
-        gold_df, sense_keys, how="left", on="sense-key1"
-    )["sense-key-idx"]
-
     gold_df["sense-keys"] = gold_df["sense-key1"]
     gold_df = gold_df.drop(columns=["sense-key1", "sense-key2", "sense-key3"])
+
+    sense_keys = pd.DataFrame(
+        gold_df["sense-keys"][gold_df["sense-keys"].notna()]
+        ,columns=["sense-keys"],
+    )
     logging.success(f"Loaded sense keys!\n")
+
+    logging.info("Simplifying sense keys")
+    sense_keys["hypernym"] = sense_keys["sense-keys"].apply(hypernym)
+
+    sense_keys = sense_keys.groupby("hypernym", dropna=False).filter(lambda x: len(x) > 15)
+    sense_keys = sense_keys.drop_duplicates(subset=["hypernym"])
+    sense_keys["hypernym-key-idx"] = pd.factorize(sense_keys["hypernym"])[0]
+    logging.success("Simplified!\n")
+
+    gold_df = pd.merge(gold_df, sense_keys, how="left", on="sense-keys")
+    gold_df = gold_df.drop(columns=["sense-keys"])
+    gold_df = gold_df.rename(columns={"hypernym": "sense-keys", "hypernym-key-idx": "sense-key-idx1"})
 
     logging.info(f"Merging tokens and lemmata with sense keys")
     df = data_df.merge(gold_df, on="id", how="left")
     logging.success(f"Merged!\n")
-
-    logging.info("Simplifying sense keys")
-    df['sense-keys'] = df['sense-keys'].apply(hypernym)
-    df = df.groupby("sense-keys", dropna=False).filter(lambda x: len(x) > 15)
-    df["sense-key-idx"] = pd.factorize(df["sense-keys"])[0]
-    logging.success("Simplified!\n")
 
     data_set = SemCorDataSet(df)
 
@@ -204,10 +205,11 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
 
     stats = io.StringIO()
     df.info(buf=stats)
-    
+
     logging.info(f"Statistics: {stats.getvalue()}")
     logging.info(f"{df.head()}")
     return hugging_dataset, data_set
+
 
 def hypernym(key):
     if type(key) == float:
@@ -217,9 +219,9 @@ def hypernym(key):
         h = synset.hypernyms()
         if not h:
             return current_depth
-        #new_synset = max(h, default=synset, key=lambda s: wn.path_similarity(synset, s))
+        # new_synset = max(h, default=synset, key=lambda s: wn.path_similarity(synset, s))
         new_synset = h[0]
-        return depth(new_synset, current_depth+1)
+        return depth(new_synset, current_depth + 1)
 
     MAX_DEPTH = 8
 
@@ -227,11 +229,12 @@ def hypernym(key):
     synset_depth = depth(synset, 0)
 
     while synset_depth > MAX_DEPTH:
-        #synset = max(synset.hypernyms(), default=synset, key=lambda s: wn.path_similarity(synset, s))
+        # synset = max(synset.hypernyms(), default=synset, key=lambda s: wn.path_similarity(synset, s))
         synset = synset.hypernyms()[0]
         synset_depth -= 1
 
     return synset.lemmas()[0].key()
+
 
 if __name__ == "__main__":
     main()

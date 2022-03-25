@@ -59,22 +59,6 @@ class SemCorDataSet:
             .rename(columns={"token": "sentence"})
             .reset_index()
         )
-        # if mask_token is not None:
-        #     self.sentence_level = (
-        #         self.token_level.groupby(["sentence_idx"])
-        #         .agg({"token": " ".join})
-        #         .rename(columns={"token": "sentence"})
-        #         .reset_index()
-        #     )
-        #     maskable = pd.merge(
-        #         self.token_level, self.sentence_level, on="sentence_idx", how="inner"
-        #     )
-        #     maskable = maskable[maskable["sense-keys"].notna()]
-        #     maskable["masked"] = maskable[["sentence", "token", "tokpos"]].apply(
-        #         lambda cols: _mask(*cols, mask_token), axis=1
-        #     )
-        #     self.masked = maskable[["masked", "token", "sense-keys", "sentence_idx"]]
-        # self.mask_token = mask_token
         self.all_sense_keys = pd.DataFrame(
             self.token_level["sense-keys"][
                 self.token_level["sense-keys"].notna()
