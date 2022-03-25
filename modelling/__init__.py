@@ -13,7 +13,8 @@ from transformers import (
     AutoModelForMaskedLM,
     AutoModel,
     DataCollatorForWholeWordMask,
-    PreTrainedTokenizer, AutoConfig,
+    PreTrainedTokenizer,
+    AutoConfig,
 )
 from transformers import Trainer, TrainingArguments
 from transformers import DataCollatorForLanguageModeling
@@ -99,7 +100,7 @@ BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
     "-fm",
     "--freeze-model",
     help="Freeze LM model parameters while training",
-    is_flag=True
+    is_flag=True,
 )
 @click.option(
     "-e",
@@ -107,9 +108,11 @@ BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
     help="how many epochs to train for",
     required=False,
     type=int,
-    default=10
+    default=10,
 )
 def main(**params):
+    nltk.download("wordnet")
+    nltk.download("omw-1.4")
     if torch.cuda.is_available():
         device = "cuda:0"
         logging.info(f"CUDA found; running on {device}")
@@ -122,9 +125,7 @@ def main(**params):
     ds_path = tr_path or ts_path
     logging.info(f"Loading dataset from {ds_path}")
     ds = SemCorDataSet.unpickle(ds_path.with_suffix(".pickle"))
-    hf_ds = (
-        Dataset.load_from_disk(ds_path.with_suffix(".hf"))
-    )
+    hf_ds = Dataset.load_from_disk(ds_path.with_suffix(".hf"))
     logging.success(f"Loaded dataset")
 
     hf_model = params["hf_model"]
@@ -137,8 +138,12 @@ def main(**params):
         logging.info("Loading classification model ...")
         tokenizer = AutoTokenizer.from_pretrained(model_name)
         config = AutoConfig.from_pretrained(model_name)
-        cl_model = SynsetClassificationModel(config, model_name, ds.all_sense_keys.shape[0],
-                                             freeze_lm=params["freeze_model"])
+        cl_model = SynsetClassificationModel(
+            config,
+            model_name,
+            ds.all_sense_keys.shape[0],
+            freeze_lm=params["freeze_model"],
+        )
         logging.success("Loaded classification model")
 
     else:
@@ -147,8 +152,12 @@ def main(**params):
         logging.info(f"Loading {params['local_model']} from storage ...")
         config = AutoConfig.from_pretrained(model_name, local_files_only=True)
         cl_model = SynsetClassificationModel.from_pretrained(
-            model_name, config=config, local_files_only=True, model_name=base_model_name,
-            num_classes=ds.all_sense_keys.shape[0], freeze_lm=params["freeze_model"]
+            model_name,
+            config=config,
+            local_files_only=True,
+            model_name=base_model_name,
+            num_classes=ds.all_sense_keys.shape[0],
+            freeze_lm=params["freeze_model"],
         )
         tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True)
 
@@ -189,6 +198,9 @@ def main(**params):
             label_names=["labels", "sense-labels"],
             load_best_model_at_end=True,
             num_train_epochs=params["epoch"],
+            fp16=True,
+            eval_accumulation_steps=50,
+            eval_steps=1,
         )
 
         trainer = BetterTrainer(
@@ -208,7 +220,7 @@ def main(**params):
         te_args = TrainingArguments(
             output_dir=out,
             remove_unused_columns=False,
-            label_names=["labels", "sense-labels"]
+            label_names=["labels", "sense-labels"],
         )
 
         trainer = BetterTrainer(
@@ -216,7 +228,7 @@ def main(**params):
             eval_dataset=hf_ds,
             compute_metrics=lambda ep: _compute_metrics(metrics, ep),
             data_collator=collator,
-            args=te_args
+            args=te_args,
         )
 
         eval_metrics = trainer.evaluate()
