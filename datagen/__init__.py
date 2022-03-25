@@ -118,7 +118,6 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
         gold_df["sense-key1"][gold_df["sense-key1"].notna()].unique(),
         columns=["sense-key1"],
     )
-    sense_keys["sense-key-idx"] = pd.factorize(sense_keys["sense-key1"])[0]
 
     gold_df["sense-key-idx1"] = pd.merge(
         gold_df, sense_keys, how="left", on="sense-key1"
@@ -135,6 +134,7 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
     logging.info("Simplifying sense keys")
     df['sense-keys'] = df['sense-keys'].apply(hypernym)
     df = df.groupby("sense-keys", dropna=False).filter(lambda x: len(x) > 15)
+    df["sense-key-idx"] = pd.factorize(df["sense-keys"])[0]
     logging.success("Simplified!\n")
 
     data_set = SemCorDataSet(df)
