@@ -13,6 +13,6 @@ do
 	~/.local/bin/poetry run python main.py modelling \
 		--hf-model ${model} \
         --train dataset/${model}+semcor+omsti.pickle \
-		--output-path models/${model}+semcor \
+		--output-path models/${model}+semcor+omsti \
 		--epoch 10
 done	
