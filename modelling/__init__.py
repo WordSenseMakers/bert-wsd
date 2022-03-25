@@ -198,6 +198,7 @@ def main(**params):
             label_names=["labels", "sense-labels"],
             load_best_model_at_end=True,
             num_train_epochs=params["epoch"],
+            eval_accumulation_steps=200,
             fp16=True,
         )
 
