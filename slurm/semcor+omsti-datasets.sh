@@ -10,8 +10,8 @@
 for model in roberta deberta bert-wwm 
 do
 	~/.local/bin/poetry run python main.py datagen \
-		-ds ./train/WSD_Training_Corpora/SemCor/semcor.data.xml \
-		-gs ./train/WSD_Training_Corpora/SemCor/semcor.gold.key.txt \
+		-ds ./train/WSD_Training_Corpora/SemCor+OMSTI/semcor+omsti.data.xml \
+		-gs ./train/WSD_Training_Corpora/SemCor+OMSTI/semcor+omsti.gold.key.txt \
 		-hm ${model} \
-		-op ./dataset/${model}+semcor.pickle
+		-op ./dataset/${model}+semcor+omsti.pickle
 done
