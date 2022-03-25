@@ -36,14 +36,15 @@ BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
 
 
 @click.command(name="raw", help="motivate need for training classification model")
-@optgroup.option(
+@click.option(
     "-hm",
     "--hf-model",
     type=click.Choice(["bert-wwm", "roberta", "deberta"], case_sensitive=False),
     callback=lambda ctx, param, value: value.lower() if value is not None else None,
     help="supported huggingface models",
+    required=True
 )
-@optgroup.option(
+@click.option(
     "-ds",
     "--dataset",
     type=click.Path(
@@ -54,6 +55,7 @@ BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
         path_type=pathlib.Path,
     ),
     help="path to data set",
+    required=True,
 )
 @click.option(
     "-op",
