@@ -7,8 +7,6 @@
 #SBATCH --gres=gpu:1
 #SBATCH --partition=students
 #SBATCH --nodelist=gpu09
-#SBATCH --mail-user=ab270@stud.uni-heidelberg.de
-#SBATCH --mail-type=ALL
 
 for model in roberta deberta bert-wwm 
 do
