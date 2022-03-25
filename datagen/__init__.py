@@ -130,6 +130,13 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
 
     logging.info(f"Merging tokens and lemmata with sense keys")
     df = data_df.merge(gold_df, on="id", how="left")
+    logging.success(f"Merged!\n")
+
+    logging.info("Simplifying sense keys")
+    df['sense-keys'] = df['sense-keys'].apply(hypernym)
+    df = df.groupby("sense-keys", dropna=False).filter(lambda x: len(x) > 15)
+    logging.success("Simplified!\n")
+
     data_set = SemCorDataSet(df)
 
     pretrained_model_name = construct_model_name(model_name)
@@ -197,11 +204,34 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str):
 
     stats = io.StringIO()
     df.info(buf=stats)
-    logging.success(f"Merged!\n")
+    
     logging.info(f"Statistics: {stats.getvalue()}")
     logging.info(f"{df.head()}")
     return hugging_dataset, data_set
 
+def hypernym(key):
+    if type(key) == float:
+        return key
+
+    def depth(synset, current_depth):
+        h = synset.hypernyms()
+        if not h:
+            return current_depth
+        #new_synset = max(h, default=synset, key=lambda s: wn.path_similarity(synset, s))
+        new_synset = h[0]
+        return depth(new_synset, current_depth+1)
+
+    MAX_DEPTH = 8
+
+    synset = wn.lemma_from_key(key).synset()
+    synset_depth = depth(synset, 0)
+
+    while synset_depth > MAX_DEPTH:
+        #synset = max(synset.hypernyms(), default=synset, key=lambda s: wn.path_similarity(synset, s))
+        synset = synset.hypernyms()[0]
+        synset_depth -= 1
+
+    return synset.lemmas()[0].key()
 
 if __name__ == "__main__":
     main()
