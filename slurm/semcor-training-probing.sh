@@ -13,7 +13,7 @@ do
 	~/.local/bin/poetry run python main.py modelling \
 		--hf-model ${model} \
        	--train dataset/${model}+semcor.pickle \
-		--output-path models/${model}+semcor \
+		--output-path models/${model}-probing+semcor \
 		--epoch 10 \
         --freeze-lm
 done	
