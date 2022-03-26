@@ -15,5 +15,5 @@ do
        	--train dataset/${model}+semcor.pickle \
 		--output-path models/${model}-probing+semcor \
 		--epoch 10 \
-        --freeze-lm
+    --freeze-model
 done	
