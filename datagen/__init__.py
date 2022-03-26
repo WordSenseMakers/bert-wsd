@@ -55,7 +55,7 @@ BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
 @click.option(
     "-te",
     "--test-dataset",
-    help="Freeze LM model parameters while training",
+    help="Don't remove rows with small class counts",
     is_flag=True,
 )
 
@@ -63,7 +63,7 @@ def main(**params):
     xf = params["dataset"]
     gs = params["gold_standard"]
     model_name = params["hf_model"]
-    hugging_ds, semcor_ds = _create_dataset(xf, gs, model_name, params["test-dataset"])
+    hugging_ds, semcor_ds = _create_dataset(xf, gs, model_name, params["test_dataset"])
 
     op = params["output_path"]
     hf_op = op.with_suffix(".hf")
