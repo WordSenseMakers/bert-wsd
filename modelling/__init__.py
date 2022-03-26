@@ -182,8 +182,7 @@ def main(**params):
 
     if tr_path is not None:
         ds_splits = hf_ds.train_test_split(
-            test_size=0.2,
-            #    shuffle=False,
+            test_size=0.2, seed=42
         )
         train_dataset = ds_splits["train"]
         eval_dataset = ds_splits["test"]
