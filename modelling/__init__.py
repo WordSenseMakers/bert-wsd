@@ -191,14 +191,17 @@ def main(**params):
 
         tr_args = TrainingArguments(
             output_dir=out,
-            evaluation_strategy="epoch",
-            save_strategy="epoch",
+            evaluation_strategy="steps",
+            save_strategy="steps",
             optim="adamw_torch",
             remove_unused_columns=False,
             label_names=["labels", "sense-labels"],
             load_best_model_at_end=True,
             num_train_epochs=params["epoch"],
             fp16=True,
+            eval_accumulation_steps=50,
+            save_total_limit=5,
+            #eval_steps=1
         )
 
         trainer = BetterTrainer(
