@@ -135,9 +135,9 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str, test_datas
 
     if not test_dataset:
         sense_keys = sense_keys.groupby("hypernym", dropna=False).filter(lambda x: len(x) > 15)
-        sense_keys = sense_keys.drop_duplicates(subset=["hypernym"])
-        sense_keys["hypernym-key-idx"] = pd.factorize(sense_keys["hypernym"])[0]
-        logging.success("Simplified!\n")
+    sense_keys = sense_keys.drop_duplicates(subset=["hypernym"])
+    sense_keys["hypernym-key-idx"] = pd.factorize(sense_keys["hypernym"])[0]
+    logging.success("Simplified!\n")
 
     gold_df = pd.merge(gold_df, sense_keys, how="left", on="sense-keys")
     gold_df = gold_df.drop(columns=["sense-keys"])
