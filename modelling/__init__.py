@@ -191,8 +191,8 @@ def main(**params):
 
         tr_args = TrainingArguments(
             output_dir=out,
-            evaluation_strategy="epoch",
-            save_strategy="epoch",
+            evaluation_strategy="steps",
+            save_strategy="steps",
             optim="adamw_torch",
             remove_unused_columns=False,
             label_names=["labels", "sense-labels"],
