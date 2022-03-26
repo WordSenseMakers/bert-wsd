@@ -156,7 +156,7 @@ def main(**params):
             config=config,
             local_files_only=True,
             model_name=base_model_name,
-            num_classes=ds.all_sense_keys.shape[0],
+            num_classes=2584,
             freeze_lm=params["freeze_model"],
         )
         tokenizer = AutoTokenizer.from_pretrained(model_name, local_files_only=True)

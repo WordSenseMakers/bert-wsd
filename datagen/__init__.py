@@ -55,7 +55,7 @@ BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
 @click.option(
     "-te",
     "--test-dataset",
-    help="Freeze LM model parameters while training",
+    help="Don't remove rows with small class counts",
     is_flag=True,
 )
 
@@ -63,7 +63,7 @@ def main(**params):
     xf = params["dataset"]
     gs = params["gold_standard"]
     model_name = params["hf_model"]
-    hugging_ds, semcor_ds = _create_dataset(xf, gs, model_name, params["test-dataset"])
+    hugging_ds, semcor_ds = _create_dataset(xf, gs, model_name, params["test_dataset"])
 
     op = params["output_path"]
     hf_op = op.with_suffix(".hf")
@@ -135,9 +135,9 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str, test_datas
 
     if not test_dataset:
         sense_keys = sense_keys.groupby("hypernym", dropna=False).filter(lambda x: len(x) > 15)
-        sense_keys = sense_keys.drop_duplicates(subset=["hypernym"])
-        sense_keys["hypernym-key-idx"] = pd.factorize(sense_keys["hypernym"])[0]
-        logging.success("Simplified!\n")
+    sense_keys = sense_keys.drop_duplicates(subset=["hypernym"])
+    sense_keys["hypernym-key-idx"] = pd.factorize(sense_keys["hypernym"])[0]
+    logging.success("Simplified!\n")
 
     gold_df = pd.merge(gold_df, sense_keys, how="left", on="sense-keys")
     gold_df = gold_df.drop(columns=["sense-keys"])
