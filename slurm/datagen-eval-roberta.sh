@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #SBATCH --job-name=roberta-eval-datagen
-#SBATCH --output=datagen.txt
+#SBATCH --output=datagen-eval-roberta.txt
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:0
 #SBATCH --partition=students
@@ -13,6 +13,6 @@ do
 		-ds ./test/${dataset}.data.xml \
 		-gs ./test/${dataset}.gold.key.txt \
 		-hm roberta \
-		-op ./dataset/roberta+${dataset}.pickle
+		-op ./dataset/roberta+${dataset}.pickle \
 		-te
 done
