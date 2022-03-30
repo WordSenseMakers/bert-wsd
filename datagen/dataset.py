@@ -1,5 +1,6 @@
 import pathlib
 import re, string
+import pickle
 
 import pandas as pd
 from nltk.corpus import wordnet as wn
@@ -47,8 +48,10 @@ class SemCorDataSet:
         "sense-key-idx1",
     )
 
-    def __init__(self, df: pd.DataFrame):
+    def __init__(self, df: pd.DataFrame, all_sense_keys: pd.DataFrame):
         self.token_level = df
+        self.all_sense_keys = all_sense_keys
+
         self._check()
         self.token_level["sentence_idx"] = pd.factorize(
             self.token_level["docid"] + self.token_level["sntid"]
@@ -60,22 +63,27 @@ class SemCorDataSet:
             .reset_index()
         )
 
-        sks = self.token_level[["sense-keys", "sense-key-idx1"]].rename(columns={
-            "sense-keys": "sense-key1"
-        })
-        sks = sks[~sks["sense-key1"].isna()].drop_duplicates()
-        sks["sense-key-idx1"] = sks["sense-key-idx1"].astype(int)
+        #sks = self.token_level[["sense-keys", "sense-key-idx1"]].rename(columns={
+        #   "sense-keys": "sense-key1",
+        #   "sense-key-idx1": "sense-key-idx",
+        #})
+        #sks = sks[~sks["sense-key1"].isna()].drop_duplicates()
+        #sks["sense-key-idx"] = sks["sense-key-idx"].astype(int)
 
-        self.all_sense_keys = sks
 
     @staticmethod
     def unpickle(inpath: pathlib.Path) -> "SemCorDataSet":
-        df = pd.read_pickle(inpath)
-        return SemCorDataSet(df)
+        with open(inpath, "rb") as fp:
+            token_level = pickle.load(fp)
+            all_sense_keys = pickle.load(fp)
+            return SemCorDataSet(token_level, all_sense_keys)
 
     def pickle(self, out: pathlib.Path):
         out.parent.mkdir(parents=True, exist_ok=True)
-        self.token_level.to_pickle(out)
+
+        with open(out, 'wb+') as fp:
+            pickle.dump(self.token_level, fp)
+            pickle.dump(self.all_sense_keys, fp)
 
     def sense_keys(self, fullid: str) -> list:
         # dfid = f"{docid}.{sntid}.{tokid}"

@@ -169,7 +169,16 @@ def _create_dataset(
     df = data_df.merge(gold_df, on="id", how="left")
     logging.success(f"Merged!\n")
 
-    data_set = SemCorDataSet(df)
+    if not test_dataset:
+        sks = df[["sense-keys", "sense-key-idx1"]].rename(columns={
+           "sense-keys": "sense-key1",
+           "sense-key-idx1": "sense-key-idx",
+        })
+        sks = sks[~sks["sense-key1"].isna()].drop_duplicates()
+        sks["sense-key-idx"] = sks["sense-key-idx"].astype(int)
+        data_set = SemCorDataSet(df, sks)
+    else:
+        data_set = SemCorDataSet(df, training_dataset.all_sense_keys)
 
     pretrained_model_name = construct_model_name(model_name)
     tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
