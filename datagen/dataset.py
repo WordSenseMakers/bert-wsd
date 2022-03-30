@@ -59,15 +59,14 @@ class SemCorDataSet:
             .rename(columns={"token": "sentence"})
             .reset_index()
         )
-        self.all_sense_keys = pd.DataFrame(
-            self.token_level["sense-keys"][
-                self.token_level["sense-keys"].notna()
-            ].unique(),
-            columns=["sense-key1"],
-        )
-        self.all_sense_keys["sense-key-idx"] = pd.factorize(
-            self.all_sense_keys["sense-key1"]
-        )[0]
+
+        sks = self.token_level[["sense-keys", "sense-key-idx1"]].rename(columns={
+            "sense-keys": "sense-key1"
+        })
+        sks = sks[~sks["sense-key1"].isna()].drop_duplicates()
+        sks["sense-key-idx1"] = sks["sense-key-idx1"].astype(int)
+
+        self.all_sense_keys = sks
 
     @staticmethod
     def unpickle(inpath: pathlib.Path) -> "SemCorDataSet":
