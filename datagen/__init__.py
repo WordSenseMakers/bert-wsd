@@ -53,17 +53,17 @@ BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
     required=True,
 )
 @click.option(
-    "-te",
-    "--test-dataset",
-    help="Don't remove rows with small class counts",
-    is_flag=True,
+    "-tr",
+    "--train-dataset",
+    help="Path to a training dataset from which to extract sense key ids (switches to test dataset generation mode)",
+    type=click.Path(exists=True, path_type=pathlib.Path),
+    required=False,
 )
-
 def main(**params):
     xf = params["dataset"]
     gs = params["gold_standard"]
     model_name = params["hf_model"]
-    hugging_ds, semcor_ds = _create_dataset(xf, gs, model_name, params["test_dataset"])
+    hugging_ds, semcor_ds = _create_dataset(xf, gs, model_name, params["train_dataset"])
 
     op = params["output_path"]
     hf_op = op.with_suffix(".hf")
@@ -74,7 +74,9 @@ def main(**params):
     semcor_ds.pickle(sc_op)
 
 
-def _create_dataset(xmlfile: str, goldstandard: str, model_name: str, test_dataset: bool):
+def _create_dataset(
+    xmlfile: str, goldstandard: str, model_name: str, test_dataset: str
+):
     rows = list()
 
     logging.info(f"Loading tokens and lemmata from {xmlfile}")
@@ -124,30 +126,59 @@ def _create_dataset(xmlfile: str, goldstandard: str, model_name: str, test_datas
     gold_df = gold_df.drop(columns=["sense-key1", "sense-key2", "sense-key3"])
 
     sense_keys = pd.DataFrame(
-        gold_df["sense-keys"][gold_df["sense-keys"].notna()]
-        ,columns=["sense-keys"],
+        gold_df["sense-keys"][gold_df["sense-keys"].notna()],
+        columns=["sense-keys"],
     )
     logging.success(f"Loaded sense keys!\n")
 
-    
     logging.info("Simplifying sense keys")
     sense_keys["hypernym"] = sense_keys["sense-keys"].apply(hypernym)
 
     if not test_dataset:
-        sense_keys = sense_keys.groupby("hypernym", dropna=False).filter(lambda x: len(x) > 15)
+        sense_keys = sense_keys.groupby("hypernym", dropna=False).filter(
+            lambda x: len(x) > 15
+        )
     sense_keys = sense_keys.drop_duplicates(subset=["hypernym"])
-    sense_keys["hypernym-key-idx"] = pd.factorize(sense_keys["hypernym"])[0]
+
+    if not test_dataset:
+        sense_keys["hypernym-key-idx"] = pd.factorize(sense_keys["hypernym"])[0]
+    else:
+        logging.info(f"Using training dataset to extract sense keys ids from")
+        training_dataset = SemCorDataSet.unpickle(test_dataset)
+        match_ids = pd.merge(
+            sense_keys.drop(columns=["sense-keys"]),
+            training_dataset.token_level,
+            left_on="hypernym",
+            right_on="sense-keys",
+            how="left",
+        )
+        match_ids = match_ids.drop_duplicates(subset=["hypernym"])
+        match_ids = match_ids[~match_ids["sense-keys"].isna()]
+        sense_keys = pd.merge(sense_keys, match_ids[["hypernym", "sense-key-idx1"]])
+        # del training_dataset
     logging.success("Simplified!\n")
 
     gold_df = pd.merge(gold_df, sense_keys, how="left", on="sense-keys")
+    gold_df = gold_df[~gold_df.hypernym.isna()]
     gold_df = gold_df.drop(columns=["sense-keys"])
-    gold_df = gold_df.rename(columns={"hypernym": "sense-keys", "hypernym-key-idx": "sense-key-idx1"})
+    gold_df = gold_df.rename(
+        columns={"hypernym": "sense-keys", "hypernym-key-idx": "sense-key-idx1"}
+    )
 
     logging.info(f"Merging tokens and lemmata with sense keys")
     df = data_df.merge(gold_df, on="id", how="left")
     logging.success(f"Merged!\n")
 
-    data_set = SemCorDataSet(df)
+    if not test_dataset:
+        sks = df[["sense-keys", "sense-key-idx1"]].rename(columns={
+           "sense-keys": "sense-key1",
+           "sense-key-idx1": "sense-key-idx",
+        })
+        sks = sks[~sks["sense-key1"].isna()].drop_duplicates()
+        sks["sense-key-idx"] = sks["sense-key-idx"].astype(int)
+        data_set = SemCorDataSet(df, sks)
+    else:
+        data_set = SemCorDataSet(df, training_dataset.all_sense_keys)
 
     pretrained_model_name = construct_model_name(model_name)
     tokenizer = AutoTokenizer.from_pretrained(pretrained_model_name)
