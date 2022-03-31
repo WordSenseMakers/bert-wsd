@@ -31,20 +31,6 @@ It will be assumed that the datasets were downloaded into `train` and `test` res
 ├── README.md
 ├── saliency_lit.ipynb
 ├── saliency_own.ipynb
-├── slurm
-│   ├── datagen-eval-all.sh
-│   ├── datagen-eval-deberta.sh
-│   ├── datagen-eval-roberta.sh
-│   ├── eval_checkpoints.sh
-│   ├── model-eval-all.sh
-│   ├── roberta-eval.sh
-│   ├── semcor-datasets.sh
-│   ├── semcor+omsti-datasets.sh
-│   ├── semcor+omsti-training-probing.sh
-│   ├── semcor+omsti-training.sh
-│   ├── semcor-training-probing.sh
-│   ├── semcor-training-raw.sh
-│   └── semcor-training.sh
 ```
 
 ## Generating Datasets
@@ -187,7 +173,7 @@ You must specify a dataset created for the model referenced with one of the mode
 $ poetry run python main.py modelling \
     --local-model models/finetuned-roberta+semcor-e5 \
     --test dataset/semeval2007.pickle \
-    --output-path models/eval/finetuned-roberta+semcor-e5
+    --output-path models/eval/finetuned-roberta+semcor-e5 \
     --run-name ft-roberta+semeval2007 \
     --metric-file out/eval/metrics.pickle
 ```
