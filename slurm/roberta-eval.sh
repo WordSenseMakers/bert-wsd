@@ -13,5 +13,5 @@ do
 	~/.local/bin/poetry run python main.py modelling \
 		--local-model roberta+semcor \
        	--test dataset/roberta+${dataset}.pickle \
-		--output-path eval/roberta+${dataset} \
+		--output-path eval/roberta+${dataset}
 done	

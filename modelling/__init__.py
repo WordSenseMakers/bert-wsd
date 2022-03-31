@@ -1,4 +1,5 @@
 import pathlib
+import pickle
 
 import numpy as np, pandas as pd
 
@@ -110,6 +111,20 @@ BERT_WHOLE_WORD_MASKING = "bert-large-uncased-whole-word-masking"
     type=int,
     default=10,
 )
+@click.option(
+    "--run-name",
+    help="Name to be used to identify run in result dict",
+    default="evalrun",
+    type=str,
+    required=False
+)
+@click.option(
+    "--metric-file",
+    help="File to write metrics",
+    default="out/metrics.pickle",
+    type=str,
+    required=False
+)
 def main(**params):
     nltk.download("wordnet")
     nltk.download("omw-1.4")
@@ -178,11 +193,11 @@ def main(**params):
     relevant_columns.append("sense-labels")
     hf_ds.set_format(type="torch", columns=relevant_columns)
 
-    metrics = load_metrics(ds)
+    metric_lambdas = load_metrics(ds)
 
     if tr_path is not None:
         ds_splits = hf_ds.train_test_split(
-            test_size=0.2, seed=42
+            seed=42
         )
         train_dataset = ds_splits["train"]
         eval_dataset = ds_splits["test"]
@@ -209,7 +224,7 @@ def main(**params):
             args=tr_args,
             train_dataset=train_dataset,
             eval_dataset=eval_dataset,
-            compute_metrics=lambda ep: _compute_metrics(metrics, ep),
+            compute_metrics=lambda ep: _compute_metrics(metric_lambdas, ep),
             data_collator=collator,
         )
         trainer.train()
@@ -226,18 +241,41 @@ def main(**params):
         trainer = BetterTrainer(
             model=cl_model,
             eval_dataset=hf_ds,
-            compute_metrics=lambda ep: _compute_metrics(metrics, ep),
+            compute_metrics=lambda ep: _compute_metrics(metric_lambdas, ep),
             data_collator=collator,
             args=te_args,
         )
 
         eval_metrics = trainer.evaluate()
 
+        save_results(eval_metrics, params["metric_file"], params["run_name"])
         for k, v in eval_metrics.items():
             print(f"{k}\t{v}")
 
     else:
         raise AssertionError("Both training and testing were None!")
+
+
+def determine_key(training_name: str, results_dict):
+    key_name = "{}_{}"
+    i = 0
+    while key_name.format(training_name, i) in results_dict:
+        i += 1
+    return key_name.format(training_name, i)
+
+
+def save_results(metrics_dict, results_file, suffix):
+    results_dict = {}
+    results_file = pathlib.Path(results_file)
+
+    if results_file.exists():
+        with open(results_file, "rb") as file:
+            results_dict = pickle.load(file)
+
+    results_dict[determine_key(suffix, results_dict)] = metrics_dict
+
+    with open(results_file, "wb") as file:
+        pickle.dump(results_dict, file)
 
 
 def construct_model_name(hf_model: str):
@@ -258,14 +296,14 @@ def load_metrics(dataset: SemCorDataSet) -> list:
     accuracy = load_metric("accuracy")
     precision = load_metric("precision")
     recall = load_metric("recall")
-    dataset = WordSenseSimilarity(dataset)
+    similarity = WordSenseSimilarity(dataset)
     f1 = load_metric("f1")
 
     computations = [
         lambda p, r: accuracy.compute(predictions=p, references=r),
         lambda p, r: precision.compute(predictions=p, references=r, average=average),
         lambda p, r: recall.compute(predictions=p, references=r, average=average),
-        lambda p, r: dataset.compute(predictions=p, references=r),
+        lambda p, r: similarity.compute(predictions=p, references=r),
         lambda p, r: f1.compute(predictions=p, references=r, average=average),
     ]
     logging.success("Loaded metrics")
